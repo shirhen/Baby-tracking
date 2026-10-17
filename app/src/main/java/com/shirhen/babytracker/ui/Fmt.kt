@@ -38,6 +38,16 @@ object Fmt {
 
     fun dayLabel(ms: Long) = dayLabel(ms.toLocalDate())
 
+    /** Short elapsed time for big displays: "45 ד׳", "2:15", "3 ימים". */
+    fun since(ms: Long, now: Long = System.currentTimeMillis()): String {
+        val min = ((now - ms) / 60_000).toInt().coerceAtLeast(0)
+        return when {
+            min < 60 -> "$min ד׳"
+            min < 48 * 60 -> "${min / 60}:${"%02d".format(min % 60)}"
+            else -> "${min / (60 * 24)} ימים"
+        }
+    }
+
     fun age(days: Int): String = when {
         days < 14 -> if (days == 1) "יום אחד" else "$days ימים"
         days < 60 -> {
@@ -99,7 +109,7 @@ object Fmt {
         EventType.BATH -> "מקלחת"
         EventType.PUMP -> buildList {
             add("${e.pumpedMl} מ״ל")
-            if (e.pumpLeftMl > 0 || e.pumpRightMl > 0) add("ש׳ ${e.pumpLeftMl} · י׳ ${e.pumpRightMl}")
+            if (e.pumpLeftMl > 0 && e.pumpRightMl > 0) add("ש׳ ${e.pumpLeftMl} · י׳ ${e.pumpRightMl}")
             if (e.durationMin > 0) add("${e.durationMin} ד׳")
         }.joinToString(" · ")
     }.let { base -> if (e.note.isNotBlank()) "$base · ${e.note}" else base }

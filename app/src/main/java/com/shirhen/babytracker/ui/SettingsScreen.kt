@@ -20,6 +20,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -56,6 +57,7 @@ fun SettingsScreen(profile: BabyProfile?, weights: List<Weight>, modifier: Modif
     ) {
         Text("הגדרות", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         UserCard()
+        NightCard()
         ProfileCard(profile)
         SettingsCard("שקילות") { Muted("הוספה ומעקב משקל: בלשונית היסטוריה ← משקל.") }
         FamilyCard()
@@ -226,5 +228,19 @@ private fun FamilyCard() {
             confirmButton = { TextButton(onClick = { FamilySync.leave(); confirmLeave = false }) { Text("ניתוק") } },
             dismissButton = { TextButton(onClick = { confirmLeave = false }) { Text("ביטול") } },
         )
+    }
+}
+
+@Composable
+private fun NightCard() {
+    val auto by Repo.prefs.nightAuto.collectAsState()
+    SettingsCard("מצב לילה") {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("אוטומטי בין 22:00 ל-06:00")
+                Muted("מסך כהה עם כפתורי ענק. אפשר תמיד לעבור ידנית מכפתור הירח במסך השעון.")
+            }
+            Switch(checked = auto, onCheckedChange = { Repo.prefs.setNightAuto(it) })
+        }
     }
 }

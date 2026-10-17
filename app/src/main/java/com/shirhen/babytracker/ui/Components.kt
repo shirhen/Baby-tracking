@@ -125,7 +125,7 @@ fun QuickTile(emoji: String, label: String, color: Color, modifier: Modifier = M
     ) {
         Text(emoji, fontSize = 26.sp)
         Spacer(Modifier.size(2.dp))
-        Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium)
+        Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium, color = Palette.ink)
     }
 }
 

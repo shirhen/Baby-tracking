@@ -35,7 +35,7 @@ class QuickEntryActivity : ComponentActivity() {
             ?: EventType.FEED
 
         setContent {
-            BabyTheme {
+            BabyTheme(dark = Repo.prefs.nightAuto.value && isNightHour()) {
                 var ctx by remember { mutableStateOf<Ctx?>(null) }
                 LaunchedEffect(Unit) {
                     ctx = withContext(Dispatchers.IO) {

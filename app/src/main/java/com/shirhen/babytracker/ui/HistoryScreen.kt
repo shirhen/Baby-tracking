@@ -62,7 +62,7 @@ fun HistoryScreen(
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         item {
-            Text("היסטוריה", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text("נתונים", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

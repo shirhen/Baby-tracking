@@ -24,6 +24,15 @@ class Prefs(context: Context) {
         _familyId.value = value
     }
 
+    private val _nightAuto = MutableStateFlow(sp.getBoolean(KEY_NIGHT_AUTO, true))
+    /** Switch to night mode automatically between 22:00 and 06:00. */
+    val nightAuto: StateFlow<Boolean> = _nightAuto
+
+    fun setNightAuto(value: Boolean) {
+        sp.edit().putBoolean(KEY_NIGHT_AUTO, value).apply()
+        _nightAuto.value = value
+    }
+
     var lastPullAt: Long
         get() = sp.getLong(KEY_LAST_PULL, 0L)
         set(value) = sp.edit().putLong(KEY_LAST_PULL, value).apply()
@@ -32,5 +41,6 @@ class Prefs(context: Context) {
         const val KEY_NAME = "user_name"
         const val KEY_FAMILY = "family_id"
         const val KEY_LAST_PULL = "last_pull"
+        const val KEY_NIGHT_AUTO = "night_auto"
     }
 }
