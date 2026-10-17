@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">מעקב תינוק</string>
+    <string name="widget_name">מעקב תינוק – הזנה מהירה</string>
+    <string name="widget_description">האכלה אחרונה וכפתורי תיעוד מהיר</string>
+</resources>
