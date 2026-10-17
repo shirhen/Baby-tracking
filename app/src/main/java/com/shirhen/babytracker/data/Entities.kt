@@ -1,5 +1,6 @@
 package com.shirhen.babytracker.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import java.util.UUID
@@ -21,6 +22,8 @@ data class Event(
     val feedKind: FeedKind? = null,
     val leftMin: Int = 0,
     val rightMin: Int = 0,
+    /** Total breastfeeding minutes when the sides were not timed separately. */
+    @ColumnInfo(defaultValue = "0") val breastTotalMin: Int = 0,
     /** "L" or "R": the side the feed ended on. */
     val lastSide: String? = null,
     val formulaMl: Int = 0,
@@ -40,7 +43,7 @@ data class Event(
 )
 
 val Event.bottleMl: Int get() = formulaMl + expressedMl
-val Event.breastMin: Int get() = leftMin + rightMin
+val Event.breastMin: Int get() = if (leftMin + rightMin > 0) leftMin + rightMin else breastTotalMin
 val Event.pumpedMl: Int get() = pumpLeftMl + pumpRightMl
 
 @Entity(tableName = "weights")

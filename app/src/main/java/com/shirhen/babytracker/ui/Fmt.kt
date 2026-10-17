@@ -85,6 +85,7 @@ object Fmt {
             add(feedKind(e.feedKind))
             if (e.leftMin > 0) add("ש׳ ${e.leftMin} ד׳")
             if (e.rightMin > 0) add("י׳ ${e.rightMin} ד׳")
+            if (e.leftMin == 0 && e.rightMin == 0 && e.breastTotalMin > 0) add("${e.breastTotalMin} ד׳")
             if (e.leftMin == 0 && e.rightMin == 0 && e.lastSide != null) add("צד ${side(e.lastSide)}")
             if (e.formulaMl > 0) add("תמ״ל ${e.formulaMl} מ״ל")
             if (e.expressedMl > 0) add("שאוב ${e.expressedMl} מ״ל")

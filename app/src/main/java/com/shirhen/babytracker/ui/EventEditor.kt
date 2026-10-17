@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -39,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -90,6 +92,9 @@ fun EventEditorDialog(
     var secL by remember { mutableIntStateOf(initial.leftMin * 60) }
     var secR by remember { mutableIntStateOf(initial.rightMin * 60) }
     var running by remember { mutableStateOf<String?>(null) }
+    var totalMin by remember { mutableIntStateOf(initial.breastTotalMin) }
+    // Total-only mode when editing an entry that was saved that way.
+    var bySide by remember { mutableStateOf(!(initial.breastTotalMin > 0 && initial.leftMin + initial.rightMin == 0)) }
 
     LaunchedEffect(running) {
         val side = running ?: return@LaunchedEffect
@@ -101,8 +106,9 @@ fun EventEditorDialog(
 
     fun build(): Event = when (e.type) {
         EventType.FEED -> e.copy(
-            leftMin = if (e.feedKind.usesBreast()) (secL + 30) / 60 else 0,
-            rightMin = if (e.feedKind.usesBreast()) (secR + 30) / 60 else 0,
+            leftMin = if (e.feedKind.usesBreast() && bySide) (secL + 30) / 60 else 0,
+            rightMin = if (e.feedKind.usesBreast() && bySide) (secR + 30) / 60 else 0,
+            breastTotalMin = if (e.feedKind.usesBreast() && !bySide) totalMin else 0,
             lastSide = if (e.feedKind.usesBreast()) e.lastSide else null,
             formulaMl = if (e.feedKind.usesFormula()) e.formulaMl else 0,
             expressedMl = if (e.feedKind.usesExpressed()) e.expressedMl else 0,
@@ -139,6 +145,15 @@ fun EventEditorDialog(
                             running = side
                             if (side != null) e = e.copy(lastSide = side)
                         },
+                        bySide = bySide,
+                        setBySide = { mode ->
+                            if (!mode) running = null
+                            // Carry the minutes over when switching, so nothing typed is lost.
+                            if (!mode && totalMin == 0) totalMin = (secL + secR + 30) / 60
+                            bySide = mode
+                        },
+                        totalMin = totalMin,
+                        setTotalMin = { totalMin = it },
                         suggestedSide = suggestedSide,
                         guideHint = guideHint,
                     )
@@ -181,6 +196,10 @@ private fun FeedFields(
     setSecR: (Int) -> Unit,
     running: String?,
     setRunning: (String?) -> Unit,
+    bySide: Boolean,
+    setBySide: (Boolean) -> Unit,
+    totalMin: Int,
+    setTotalMin: (Int) -> Unit,
     suggestedSide: String?,
     guideHint: String?,
 ) {
@@ -196,8 +215,18 @@ private fun FeedFields(
 
     if (e.feedKind.usesBreast()) {
         suggestedSide?.let { Muted("להתחיל בצד: ${Fmt.side(it)} (הפוך מהפעם הקודמת)") }
-        SideTimer("שמאל", secL, running == "L", { setRunning(if (running == "L") null else "L") }, setSecL)
-        SideTimer("ימין", secR, running == "R", { setRunning(if (running == "R") null else "R") }, setSecR)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("משך:")
+            FilterChip(selected = bySide, onClick = { setBySide(true) }, label = { Text("לפי צד") })
+            FilterChip(selected = !bySide, onClick = { setBySide(false) }, label = { Text("סה״כ") })
+        }
+        if (bySide) {
+            Muted("מקלידים דקות, או מפעילים טיימר ▶ – מה שנוח. אפשר להשאיר צד ריק.")
+            SideTimer("שמאל", secL, running == "L", { setRunning(if (running == "L") null else "L") }, setSecL)
+            SideTimer("ימין", secR, running == "R", { setRunning(if (running == "R") null else "R") }, setSecR)
+        } else {
+            Stepper("משך כולל", totalMin, setTotalMin, step = 5, unit = "ד׳", max = 240)
+        }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("סיים בצד:")
             FilterChip(selected = e.lastSide == "L", onClick = { onChange(e.copy(lastSide = "L")) }, label = { Text("שמאל") })
@@ -217,20 +246,31 @@ private fun FeedFields(
 
 @Composable
 private fun SideTimer(label: String, seconds: Int, isRunning: Boolean, onToggle: () -> Unit, setSeconds: (Int) -> Unit) {
+    val minutes = (seconds + 30) / 60
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-        Text(label, modifier = Modifier.width(56.dp), style = MaterialTheme.typography.bodyLarge)
-        FilledIconButton(onClick = onToggle) {
-            Icon(if (isRunning) Icons.Filled.Pause else Icons.Filled.PlayArrow, contentDescription = if (isRunning) "עצירה" else "התחלה")
-        }
-        Spacer(Modifier.width(10.dp))
-        Text(
-            "%d:%02d".format(seconds / 60, seconds % 60),
-            fontSize = 22.sp,
-            fontWeight = if (isRunning) FontWeight.Bold else FontWeight.Normal,
-            modifier = Modifier.weight(1f),
+        Text(label, modifier = Modifier.width(52.dp), style = MaterialTheme.typography.bodyLarge)
+        OutlinedTextField(
+            value = if (minutes == 0) "" else minutes.toString(),
+            onValueChange = { v -> setSeconds((v.filter(Char::isDigit).take(3).toIntOrNull() ?: 0) * 60) },
+            placeholder = { Text("0") },
+            suffix = { Text("ד׳", fontSize = 12.sp) },
+            singleLine = true,
+            enabled = !isRunning,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.width(96.dp),
         )
-        TextButton(onClick = { setSeconds(seconds - 60) }) { Text("−1 ד׳") }
-        TextButton(onClick = { setSeconds(seconds + 60) }) { Text("+1 ד׳") }
+        Spacer(Modifier.width(8.dp))
+        FilledIconButton(onClick = onToggle) {
+            Icon(if (isRunning) Icons.Filled.Pause else Icons.Filled.PlayArrow, contentDescription = if (isRunning) "עצירה" else "טיימר")
+        }
+        Spacer(Modifier.width(8.dp))
+        if (isRunning || seconds % 60 != 0) {
+            Text(
+                "%d:%02d".format(seconds / 60, seconds % 60),
+                fontSize = 18.sp,
+                fontWeight = if (isRunning) FontWeight.Bold else FontWeight.Normal,
+            )
+        }
     }
 }
 

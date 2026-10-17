@@ -7,6 +7,8 @@ import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.Upsert
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -60,7 +62,13 @@ interface ProfileDao {
     suspend fun upsert(profile: BabyProfile)
 }
 
-@Database(entities = [Event::class, Weight::class, BabyProfile::class], version = 1, exportSchema = true)
+private val MIGRATION_1_2 = object : Migration(1, 2) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE events ADD COLUMN breastTotalMin INTEGER NOT NULL DEFAULT 0")
+    }
+}
+
+@Database(entities = [Event::class, Weight::class, BabyProfile::class], version = 2, exportSchema = true)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun events(): EventDao
     abstract fun weights(): WeightDao
@@ -72,6 +80,7 @@ abstract class AppDatabase : RoomDatabase() {
         fun get(context: Context): AppDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "baby.db")
+                    .addMigrations(MIGRATION_1_2)
                     .build().also { instance = it }
             }
     }
