@@ -97,7 +97,7 @@ private fun AppRoot() {
         val m = Modifier.padding(pad)
         when (tab) {
             0 -> HomeScreen(events, profile, guide, now, suggestedSide, startNew, startEdit, { tab = 2 }, m)
-            1 -> HistoryScreen(events, startEdit, m)
+            1 -> HistoryScreen(events, weights, profile, startEdit, m)
             else -> SettingsScreen(profile, weights, m)
         }
     }

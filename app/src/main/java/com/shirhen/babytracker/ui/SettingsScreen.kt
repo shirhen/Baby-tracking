@@ -57,7 +57,7 @@ fun SettingsScreen(profile: BabyProfile?, weights: List<Weight>, modifier: Modif
         Text("הגדרות", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         UserCard()
         ProfileCard(profile)
-        WeightsCard(weights)
+        SettingsCard("שקילות") { Muted("הוספה ומעקב משקל: בלשונית היסטוריה ← משקל.") }
         FamilyCard()
         SettingsCard("אודות") {
             Muted("גרסה ${BuildConfig.VERSION_NAME}")

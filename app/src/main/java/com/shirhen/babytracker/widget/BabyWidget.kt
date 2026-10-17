@@ -3,6 +3,8 @@ package com.shirhen.babytracker.widget
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.SystemClock
+import android.widget.RemoteViews
 import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
@@ -14,10 +16,10 @@ import androidx.glance.action.Action
 import androidx.glance.action.ActionParameters
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
+import androidx.glance.appwidget.AndroidRemoteViews
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.action.ActionCallback
-import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
@@ -28,6 +30,7 @@ import androidx.glance.layout.Box
 import androidx.glance.layout.Column
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
+import androidx.glance.layout.fillMaxHeight
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
@@ -36,6 +39,7 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
+import com.shirhen.babytracker.R
 import com.shirhen.babytracker.data.Event
 import com.shirhen.babytracker.data.EventType
 import com.shirhen.babytracker.data.Repo
@@ -64,6 +68,7 @@ private data class WidgetData(
     val lastFeed: Event?,
     val lastDiaper: Event?,
     val lastPump: Event?,
+    val lastBath: Event?,
     val nextSide: String?,
     val perFeed: String?,
     val todayMl: Int,
@@ -78,6 +83,10 @@ private val diaperColor = ColorProvider(Color(0xFFDCE9F5))
 private val pumpColor = ColorProvider(Color(0xFFE6DFF3))
 private val bathColor = ColorProvider(Color(0xFFD9EEE1))
 
+/**
+ * Four tiles, like the cards in the app. Each tile shows a live count-up timer since the last
+ * entry (a native Chronometer, so it ticks without waking the app) and opens quick entry on tap.
+ */
 class BabyWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
@@ -90,20 +99,19 @@ class BabyWidget : GlanceAppWidget() {
         val dao = Repo.db.events()
         val recent = dao.since(now - 3 * 24 * 3_600_000L)
         val last24 = recent.filter { it.time >= now - 24 * 3_600_000L }
-        val today = recent.filter { it.time >= LocalDate.now().startMillis() }
-        val todaySummary = summarize(today)
+        val todaySummary = summarize(recent.filter { it.time >= LocalDate.now().startMillis() })
         val guide = FeedingGuide.compute(
             Repo.db.profile().get(),
             Repo.db.weights().latest()?.grams,
             last24.count { it.type == EventType.FEED },
         )
-        val perFeed = guide?.perFeedMinMl?.let { "${it}–${guide.perFeedMaxMl} מ״ל" }
         return WidgetData(
             lastFeed = dao.last(EventType.FEED),
             lastDiaper = dao.last(EventType.DIAPER),
             lastPump = dao.last(EventType.PUMP),
+            lastBath = dao.last(EventType.BATH),
             nextSide = when (recent.lastBreastSide()) { "L" -> "ימין"; "R" -> "שמאל"; else -> null },
-            perFeed = perFeed,
+            perFeed = guide?.perFeedMinMl?.let { "${it}–${guide.perFeedMaxMl}" },
             todayMl = todaySummary.bottleMl,
             feedsToday = todaySummary.feeds,
         )
@@ -111,70 +119,92 @@ class BabyWidget : GlanceAppWidget() {
 
     @Composable
     private fun Content(context: Context, d: WidgetData) {
-        val big = TextStyle(color = ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-        val small = TextStyle(color = muted, fontSize = 12.sp)
         Column(
             modifier = GlanceModifier
                 .fillMaxSize()
                 .background(bg)
                 .cornerRadius(20.dp)
-                .padding(10.dp)
-                .clickable(actionStartActivity<MainActivity>()),
+                .padding(8.dp),
         ) {
-            val feed = d.lastFeed
+            val header = buildList {
+                add("היום: ${d.feedsToday} האכלות · ${d.todayMl} מ״ל")
+                d.perFeed?.let { add("יעד $it מ״ל") }
+            }.joinToString(" · ")
             Text(
-                text = if (feed == null) "🍼 עוד לא תועדה האכלה" else "🍼 ${Fmt.time(feed.time)} · ${Fmt.ago(feed.time)}",
-                style = big,
+                header,
+                style = TextStyle(color = muted, fontSize = 11.sp),
                 maxLines = 1,
+                modifier = GlanceModifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp)
+                    .clickable(actionStartActivity<MainActivity>()),
             )
-            val feedLine = buildList {
-                feed?.let { add(Fmt.describe(it)) }
-                d.nextSide?.let { add("צד הבא: $it") }
-            }.joinToString(" · ")
-            if (feedLine.isNotEmpty()) Text(feedLine, style = small, maxLines = 1)
-            val statusLine = buildList {
-                d.lastDiaper?.let { add("🧷 ${Fmt.ago(it.time)}") }
-                d.lastPump?.let { add("🫧 ${Fmt.ago(it.time)}") }
-                add("היום: ${d.feedsToday} האכלות, ${d.todayMl} מ״ל")
-            }.joinToString(" · ")
-            Text(statusLine, style = small, maxLines = 1)
-            d.perFeed?.let { Text("יעד משוער לארוחה: $it", style = small, maxLines = 1) }
-            Spacer(GlanceModifier.height(6.dp))
-            Row(modifier = GlanceModifier.fillMaxWidth()) {
-                QuickButton("🍼", "האכלה", feedColor, actionStartActivity(quickIntent(context, "FEED")), GlanceModifier.defaultWeight())
-                QuickButton("🧷", "חיתול", diaperColor, actionStartActivity(quickIntent(context, "DIAPER")), GlanceModifier.defaultWeight())
-                QuickButton("🫧", "שאיבה", pumpColor, actionStartActivity(quickIntent(context, "PUMP")), GlanceModifier.defaultWeight())
-                QuickButton("🛁", "מקלחת", bathColor, actionRunCallback<LogBathAction>(), GlanceModifier.defaultWeight())
+            Row(modifier = GlanceModifier.fillMaxWidth().defaultWeight()) {
+                Tile(context, EventType.FEED, d.lastFeed, feedColor,
+                    extra = listOfNotNull(d.lastFeed?.let { Fmt.describe(it) }, d.nextSide?.let { "הבא: $it" }).joinToString(" · "),
+                    modifier = GlanceModifier.defaultWeight().fillMaxHeight())
+                Tile(context, EventType.DIAPER, d.lastDiaper, diaperColor,
+                    extra = d.lastDiaper?.let { Fmt.describe(it) },
+                    modifier = GlanceModifier.defaultWeight().fillMaxHeight())
+            }
+            Row(modifier = GlanceModifier.fillMaxWidth().defaultWeight()) {
+                Tile(context, EventType.PUMP, d.lastPump, pumpColor,
+                    extra = d.lastPump?.let { Fmt.describe(it) },
+                    modifier = GlanceModifier.defaultWeight().fillMaxHeight())
+                Tile(context, EventType.BATH, d.lastBath, bathColor,
+                    extra = null,
+                    modifier = GlanceModifier.defaultWeight().fillMaxHeight())
             }
         }
     }
 
     @Composable
-    private fun QuickButton(emoji: String, label: String, color: ColorProvider, action: Action, modifier: GlanceModifier) {
-        Box(modifier = modifier.padding(horizontal = 3.dp)) {
+    private fun Tile(context: Context, type: EventType, last: Event?, color: ColorProvider, extra: String?, modifier: GlanceModifier) {
+        Box(modifier = modifier.padding(3.dp)) {
             Column(
                 modifier = GlanceModifier
-                    .fillMaxWidth()
+                    .fillMaxSize()
                     .background(color)
-                    .cornerRadius(14.dp)
-                    .padding(vertical = 6.dp)
-                    .clickable(action),
-                horizontalAlignment = Alignment.CenterHorizontally,
+                    .cornerRadius(16.dp)
+                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                    .clickable(quickAction(context, type)),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(emoji, style = TextStyle(fontSize = 20.sp))
-                Text(label, style = TextStyle(color = ink, fontSize = 11.sp))
+                Text(
+                    "${Fmt.emoji(type)} ${Fmt.title(type)}  ＋",
+                    style = TextStyle(color = ink, fontSize = 12.sp, fontWeight = FontWeight.Medium),
+                    maxLines = 1,
+                )
+                if (last == null) {
+                    Text("—", style = TextStyle(color = ink, fontSize = 22.sp, fontWeight = FontWeight.Bold))
+                } else {
+                    AndroidRemoteViews(chronometer(context, last.time))
+                }
+                val sub = listOfNotNull(last?.let { "מ-${Fmt.time(it.time)}" }, extra?.takeIf { it.isNotBlank() }).joinToString(" · ")
+                if (sub.isNotEmpty()) {
+                    Spacer(GlanceModifier.height(1.dp))
+                    Text(sub, style = TextStyle(color = muted, fontSize = 11.sp), maxLines = 1)
+                }
             }
         }
     }
 
-    private fun quickIntent(context: Context, type: String) =
-        Intent(context, QuickEntryActivity::class.java)
-            .setData(Uri.parse("babytracker://quick/$type"))
-            .putExtra(QuickEntryActivity.EXTRA_TYPE, type)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+    /** Native count-up timer: the launcher redraws it every second on its own. */
+    private fun chronometer(context: Context, since: Long): RemoteViews {
+        val elapsed = (System.currentTimeMillis() - since).coerceAtLeast(0)
+        return RemoteViews(context.packageName, R.layout.widget_chronometer).apply {
+            setChronometer(R.id.chronometer, SystemClock.elapsedRealtime() - elapsed, null, true)
+        }
+    }
+
+    private fun quickAction(context: Context, type: EventType): Action =
+        actionStartActivity(
+            Intent(context, QuickEntryActivity::class.java)
+                .setData(Uri.parse("babytracker://quick/${type.name}"))
+                .putExtra(QuickEntryActivity.EXTRA_TYPE, type.name)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
+        )
 }
 
-/** Bath is logged straight from the widget, no dialog. */
+/** Kept so widgets placed with an older version still have a valid action. */
 class LogBathAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
         Repo.save(Event(type = EventType.BATH, time = System.currentTimeMillis()))

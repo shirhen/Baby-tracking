@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Live "time since" counter inside a widget tile. Digits stay left-to-right in the Hebrew layout. -->
+<Chronometer xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/chronometer"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layoutDirection="ltr"
+    android:textDirection="ltr"
+    android:singleLine="true"
+    android:textColor="#3B2F2A"
+    android:textSize="24sp"
+    android:textStyle="bold" />

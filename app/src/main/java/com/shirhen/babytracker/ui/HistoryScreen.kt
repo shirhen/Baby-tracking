@@ -15,8 +15,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Text
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateListOf
@@ -29,13 +35,23 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.shirhen.babytracker.data.BabyProfile
 import com.shirhen.babytracker.data.Event
+import com.shirhen.babytracker.data.Weight
 import com.shirhen.babytracker.data.summarize
 import com.shirhen.babytracker.data.toLocalDate
 import java.time.LocalDate
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HistoryScreen(events: List<Event>, onEdit: (Event) -> Unit, modifier: Modifier = Modifier) {
+fun HistoryScreen(
+    events: List<Event>,
+    weights: List<Weight>,
+    profile: BabyProfile?,
+    onEdit: (Event) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var view by rememberSaveable { mutableIntStateOf(0) }
     val byDay = remember(events) { events.groupBy { it.time.toLocalDate() } }
     val days = remember(byDay) { byDay.keys.sortedDescending() }
     val expanded = remember { mutableStateListOf<LocalDate>() }
@@ -47,6 +63,16 @@ fun HistoryScreen(events: List<Event>, onEdit: (Event) -> Unit, modifier: Modifi
     ) {
         item {
             Text("היסטוריה", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = view == 0, onClick = { view = 0 }, label = { Text("🍼 יומן") })
+                FilterChip(selected = view == 1, onClick = { view = 1 }, label = { Text("⚖️ משקל") })
+            }
+        }
+        if (view == 1) {
+            item { WeightSection(weights, profile) }
+            return@LazyColumn
         }
         item { BottleChart(byDay) }
         if (days.isEmpty()) item { Muted("אין עדיין נתונים.") }
