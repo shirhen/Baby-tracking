@@ -1,6 +1,8 @@
 package com.shirhen.babytracker.ui
 
 import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -40,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.shirhen.babytracker.BuildConfig
 import com.shirhen.babytracker.data.BabyProfile
+import com.shirhen.babytracker.data.Backup
 import com.shirhen.babytracker.data.Repo
 import com.shirhen.babytracker.data.Weight
 import com.shirhen.babytracker.data.startMillis
@@ -59,8 +62,9 @@ fun SettingsScreen(profile: BabyProfile?, weights: List<Weight>, modifier: Modif
         UserCard()
         NightCard()
         ProfileCard(profile)
-        SettingsCard("שקילות") { Muted("הוספה ומעקב משקל: בלשונית היסטוריה ← משקל.") }
+        SettingsCard("שקילות") { Muted("הוספה ומעקב משקל: בלשונית נתונים ← משקל.") }
         FamilyCard()
+        BackupCard()
         SettingsCard("אודות") {
             Muted("גרסה ${BuildConfig.VERSION_NAME}")
             Muted(FeedingGuide.DISCLAIMER)
@@ -242,5 +246,61 @@ private fun NightCard() {
             }
             Switch(checked = auto, onCheckedChange = { Repo.prefs.setNightAuto(it) })
         }
+    }
+}
+
+@Composable
+private fun BackupCard() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var message by remember { mutableStateOf<String?>(null) }
+    var confirmRestore by remember { mutableStateOf<android.net.Uri?>(null) }
+
+    fun run(block: suspend () -> String) {
+        scope.launch {
+            message = try { block() } catch (e: Exception) { "שגיאה: ${e.message ?: "לא ידוע"}" }
+        }
+    }
+
+    val saveJson = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        uri?.let { run { Backup.writeJson(context, it); "הגיבוי נשמר ✓" } }
+    }
+    val saveCsv = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
+        uri?.let { run { Backup.writeCsv(context, it); "קובץ הטבלה נשמר ✓" } }
+    }
+    val openJson = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        confirmRestore = uri
+    }
+
+    SettingsCard("גיבוי וייצוא") {
+        Muted("הקובץ נשמר איפה שתבחרו: בטלפון, ב-Google Drive או לשליחה. כדאי לשמור גיבוי מדי פעם.")
+        Button(onClick = { saveJson.launch("baby-backup_${Backup.fileStamp()}.json") }, modifier = Modifier.fillMaxWidth()) {
+            Text("שמירת גיבוי מלא (JSON)")
+        }
+        OutlinedButton(onClick = { saveCsv.launch("baby-log_${Backup.fileStamp()}.csv") }, modifier = Modifier.fillMaxWidth()) {
+            Text("ייצוא לטבלה (Excel / Sheets)")
+        }
+        OutlinedButton(onClick = { openJson.launch(arrayOf("application/json", "application/octet-stream", "*/*")) }, modifier = Modifier.fillMaxWidth()) {
+            Text("שחזור מגיבוי")
+        }
+        message?.let { Text(it, fontWeight = FontWeight.Medium) }
+    }
+
+    confirmRestore?.let { uri ->
+        AlertDialog(
+            onDismissRequest = { confirmRestore = null },
+            title = { Text("לשחזר מהגיבוי?") },
+            text = { Text("רשומות מהגיבוי יתווספו, ורשומה שקיימת בשני המקומות תתעדכן לגרסה האחרונה שנערכה. שום דבר לא נמחק. אם אתם מחוברים למשפחה – גם הטלפון השני יתעדכן.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmRestore = null
+                    run {
+                        val r = Backup.restoreJson(context, uri)
+                        "שוחזר ✓ · ${r.events} רשומות, ${r.weights} שקילות" + if (r.profile) ", פרטי התינוק" else ""
+                    }
+                }) { Text("שחזור") }
+            },
+            dismissButton = { TextButton(onClick = { confirmRestore = null }) { Text("ביטול") } },
+        )
     }
 }
