@@ -47,6 +47,8 @@ data class Stats(
     // Bath
     val baths: Int,
     val lastBath: Long?,
+    // Hour of day (0–23) → number of entries, per type
+    val byHour: Map<EventType, IntArray>,
 )
 
 private fun List<Int>.avgOrNull(): Int? = if (isEmpty()) null else (sum().toDouble() / size).let { Math.round(it).toInt() }
@@ -124,5 +126,12 @@ fun computeStats(all: List<Event>, periodMs: Long, now: Long = System.currentTim
         avgPumpRightMl = pumps.filter { it.pumpLeftMl > 0 && it.pumpRightMl > 0 }.map { it.pumpRightMl }.avgOrNull(),
         baths = baths.size,
         lastBath = all.firstOrNull { it.type == EventType.BATH }?.time,
+        byHour = EventType.entries.associateWith { t ->
+            IntArray(24).also { arr ->
+                events.filter { it.type == t }.forEach {
+                    arr[Instant.ofEpochMilli(it.time).atZone(ZoneId.systemDefault()).hour]++
+                }
+            }
+        },
     )
 }

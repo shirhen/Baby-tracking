@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -18,6 +19,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -25,6 +27,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -131,6 +135,15 @@ fun StatsSection(events: List<Event>, now: Long) {
             }
         }
 
+        StatCard("🕐 לפי שעות ביממה", Palette.feed) {
+            Muted("כמה פעמים כל דבר קרה בכל שעה בתקופה שנבחרה. צבע כהה = יותר פעמים.")
+            HourAxis()
+            listOf(EventType.FEED, EventType.DIAPER, EventType.PUMP, EventType.BATH).forEach { t ->
+                val counts = s.byHour.getValue(t)
+                if (counts.sum() > 0) HourRow(t, counts)
+            }
+        }
+
         StatCard("🛁 מקלחות", Palette.bath) {
             Tiles(
                 "בתקופה" to s.baths.toString(),
@@ -202,5 +215,67 @@ private fun KindBar(s: Stats) {
                 )
             }
         }
+    }
+}
+
+private fun hourRange(h: Int) = "%02d–%02d".format(h, (h + 1) % 24)
+
+/** Up to three busiest hours, e.g. "06–07 (5), 21–22 (4)". */
+private fun peakHours(counts: IntArray): String =
+    counts.withIndex().filter { it.value > 0 }.sortedByDescending { it.value }.take(3)
+        .joinToString(" · ") { "${hourRange(it.index)} (${it.value})" }
+
+/** Day parts: night 22–06, morning 06–12, afternoon 12–17, evening 17–22. */
+private fun dayParts(counts: IntArray): String {
+    val total = counts.sum().coerceAtLeast(1)
+    fun sum(hours: Iterable<Int>) = hours.sumOf { counts[it] }
+    val parts = listOf(
+        "לילה" to sum((22..23) + (0..5)),
+        "בוקר" to sum(6..11),
+        "צהריים" to sum(12..16),
+        "ערב" to sum(17..21),
+    )
+    return parts.joinToString(" · ") { (name, n) -> "$name ${(n * 100.0 / total).roundToInt()}%" }
+}
+
+@Composable
+private fun HourAxis() {
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+        Row(Modifier.fillMaxWidth().padding(start = 0.dp)) {
+            listOf("00", "06", "12", "18", "24").forEachIndexed { i, label ->
+                Text(
+                    label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(if (i == 4) 0.0001f else 6f),
+                )
+            }
+        }
+    }
+}
+
+/** 24 cells left to right (00:00 → 23:00), shaded by count. */
+@Composable
+private fun HourRow(type: EventType, counts: IntArray) {
+    val max = (counts.maxOrNull() ?: 0).coerceAtLeast(1)
+    val base = Palette.mark(type)
+    val empty = MaterialTheme.colorScheme.surfaceVariant
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Text("${Fmt.emoji(type)} ${Fmt.title(type)}", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium)
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+            Row(Modifier.fillMaxWidth().height(22.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                counts.forEach { n ->
+                    Box(
+                        Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(if (n == 0) empty else base.copy(alpha = 0.2f + 0.8f * n / max)),
+                    )
+                }
+            }
+        }
+        Muted("שיא: ${peakHours(counts)}")
+        Muted(dayParts(counts))
     }
 }
