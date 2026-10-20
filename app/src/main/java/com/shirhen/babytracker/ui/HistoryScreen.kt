@@ -1,6 +1,8 @@
 package com.shirhen.babytracker.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -48,6 +50,7 @@ fun HistoryScreen(
     events: List<Event>,
     weights: List<Weight>,
     profile: BabyProfile?,
+    now: Long,
     onEdit: (Event) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -65,12 +68,17 @@ fun HistoryScreen(
             Text("נתונים", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         }
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = view == 0, onClick = { view = 0 }, label = { Text("🍼 יומן") })
-                FilterChip(selected = view == 1, onClick = { view = 1 }, label = { Text("⚖️ משקל") })
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
+                FilterChip(selected = view == 0, onClick = { view = 0 }, label = { Text("📊 סטטיסטיקה") })
+                FilterChip(selected = view == 1, onClick = { view = 1 }, label = { Text("📅 לפי ימים") })
+                FilterChip(selected = view == 2, onClick = { view = 2 }, label = { Text("⚖️ משקל") })
             }
         }
-        if (view == 1) {
+        if (view == 0) {
+            item { StatsSection(events, now) }
+            return@LazyColumn
+        }
+        if (view == 2) {
             item { WeightSection(weights, profile) }
             return@LazyColumn
         }

@@ -165,7 +165,7 @@ private fun AppRoot() {
                         modifier = m,
                     )
                     Tab.JOURNAL -> JournalScreen(events, guide, now, startNew, startEdit, quickSave, m)
-                    Tab.DATA -> HistoryScreen(events, weights, profile, startEdit, m)
+                    Tab.DATA -> HistoryScreen(events, weights, profile, now, startEdit, m)
                     else -> SettingsScreen(profile, weights, m)
                 }
             }
