@@ -1,6 +1,10 @@
 package com.shirhen.babytracker.widget
 
 import android.content.Context
+import com.shirhen.babytracker.ui.DAY_MS
+import androidx.glance.appwidget.SizeMode
+import androidx.glance.LocalSize
+import android.util.TypedValue
 import android.content.Intent
 import android.net.Uri
 import android.os.SystemClock
@@ -94,7 +98,20 @@ private val poopColor = ColorProvider(Color(0xFFFAEEDA))
  * Six tiles, like the cards in the app. Each tile shows a live count-up timer since the last
  * entry (a native Chronometer, so it ticks without waking the app) and opens quick entry on tap.
  */
+/** Text sizes for one tile, chosen from how tall the tiles actually are on this home screen. */
+private data class TileScale(val numberSp: Float, val titleSp: Float, val showSub: Boolean)
+
+private fun scaleFor(tileHeightDp: Float): TileScale = when {
+    tileHeightDp >= 96 -> TileScale(26f, 13f, true)
+    tileHeightDp >= 78 -> TileScale(22f, 12f, true)
+    tileHeightDp >= 62 -> TileScale(19f, 12f, false)
+    else -> TileScale(15f, 11f, false)
+}
+
 class BabyWidget : GlanceAppWidget() {
+
+    // Exact size, so the layout can shrink text instead of cutting it off.
+    override val sizeMode = SizeMode.Exact
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val data = withContext(Dispatchers.IO) { load() }
@@ -142,6 +159,9 @@ class BabyWidget : GlanceAppWidget() {
                 .cornerRadius(20.dp)
                 .padding(8.dp),
         ) {
+            // 3 rows of tiles below a one-line header; each tile has 3dp padding around it.
+            val size = LocalSize.current
+            val scale = scaleFor((size.height.value - 16f - 20f) / 3f - 6f)
             val header = buildList {
                 add("היום: ${d.feedsToday} האכלות · ${d.todayMl} מ״ל")
                 d.perFeed?.let { add("יעד $it מ״ל") }
@@ -156,25 +176,31 @@ class BabyWidget : GlanceAppWidget() {
             Row(modifier = GlanceModifier.fillMaxWidth().defaultWeight()) {
                 Tile(context, EventType.FEED, d.lastFeed, feedColor,
                     extra = listOfNotNull(d.lastFeed?.let { Fmt.describe(it) }, d.nextSide?.let { "הבא: $it" }).joinToString(" · "),
+                    scale = scale,
                     modifier = GlanceModifier.defaultWeight().fillMaxHeight())
                 Tile(context, EventType.DIAPER, d.lastDiaper, diaperColor,
                     extra = d.lastDiaper?.let { Fmt.describe(it) },
+                    scale = scale,
                     modifier = GlanceModifier.defaultWeight().fillMaxHeight())
             }
             Row(modifier = GlanceModifier.fillMaxWidth().defaultWeight()) {
                 Tile(context, EventType.PUMP, d.lastPump, pumpColor,
                     extra = d.lastPump?.let { Fmt.describe(it) },
+                    scale = scale,
                     modifier = GlanceModifier.defaultWeight().fillMaxHeight())
                 Tile(context, EventType.BATH, d.lastBath, bathColor,
                     extra = null,
+                    scale = scale,
                     modifier = GlanceModifier.defaultWeight().fillMaxHeight())
             }
             Row(modifier = GlanceModifier.fillMaxWidth().defaultWeight()) {
                 Tile(context, EventType.MED, d.lastMed, medColor,
                     extra = listOfNotNull(d.lastMed?.medName, d.medLine).joinToString(" · "),
+                    scale = scale,
                     modifier = GlanceModifier.defaultWeight().fillMaxHeight())
                 Tile(context, EventType.DIAPER, d.lastPoop, poopColor,
                     extra = null,
+                    scale = scale,
                     modifier = GlanceModifier.defaultWeight().fillMaxHeight(),
                     label = "💩 קקי אחרון")
             }
@@ -188,6 +214,7 @@ class BabyWidget : GlanceAppWidget() {
         last: Event?,
         color: ColorProvider,
         extra: String?,
+        scale: TileScale,
         modifier: GlanceModifier,
         label: String = "${Fmt.emoji(type)} ${Fmt.title(type)}",
     ) {
@@ -197,22 +224,24 @@ class BabyWidget : GlanceAppWidget() {
                     .fillMaxSize()
                     .background(color)
                     .cornerRadius(16.dp)
-                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                    .padding(horizontal = 10.dp, vertical = 4.dp)
                     .clickable(quickAction(context, type)),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
                     "$label  ＋",
-                    style = TextStyle(color = ink, fontSize = 12.sp, fontWeight = FontWeight.Medium),
+                    style = TextStyle(color = ink, fontSize = scale.titleSp.sp, fontWeight = FontWeight.Medium),
                     maxLines = 1,
                 )
-                if (last == null) {
-                    Text("—", style = TextStyle(color = ink, fontSize = 22.sp, fontWeight = FontWeight.Bold))
-                } else {
-                    AndroidRemoteViews(chronometer(context, last.time))
+                val big = TextStyle(color = ink, fontSize = scale.numberSp.sp, fontWeight = FontWeight.Bold)
+                when {
+                    last == null -> Text("—", style = big, maxLines = 1)
+                    // Over a day a ticking 57:45:01 is hard to read: show days and hours instead.
+                    System.currentTimeMillis() - last.time >= DAY_MS -> Text(longSince(last.time), style = big, maxLines = 1)
+                    else -> AndroidRemoteViews(chronometer(context, last.time, scale.numberSp))
                 }
                 val sub = listOfNotNull(last?.let { "מ-${Fmt.time(it.time)}" }, extra?.takeIf { it.isNotBlank() }).joinToString(" · ")
-                if (sub.isNotEmpty()) {
+                if (sub.isNotEmpty() && scale.showSub) {
                     Spacer(GlanceModifier.height(1.dp))
                     Text(sub, style = TextStyle(color = muted, fontSize = 11.sp), maxLines = 1)
                 }
@@ -221,11 +250,21 @@ class BabyWidget : GlanceAppWidget() {
     }
 
     /** Native count-up timer: the launcher redraws it every second on its own. */
-    private fun chronometer(context: Context, since: Long): RemoteViews {
+    private fun chronometer(context: Context, since: Long, textSp: Float): RemoteViews {
         val elapsed = (System.currentTimeMillis() - since).coerceAtLeast(0)
         return RemoteViews(context.packageName, R.layout.widget_chronometer).apply {
             setChronometer(R.id.chronometer, SystemClock.elapsedRealtime() - elapsed, null, true)
+            setTextViewTextSize(R.id.chronometer, TypedValue.COMPLEX_UNIT_SP, textSp)
         }
+    }
+
+    /** "יום ו-9 ש׳", "3 ימים". */
+    private fun longSince(since: Long): String {
+        val hours = ((System.currentTimeMillis() - since) / 3_600_000L).toInt()
+        val days = hours / 24
+        val h = hours % 24
+        val d = if (days == 1) "יום" else "$days ימים"
+        return if (h > 0 && days < 3) "$d ו-$h ש׳" else d
     }
 
     private fun quickAction(context: Context, type: EventType): Action =

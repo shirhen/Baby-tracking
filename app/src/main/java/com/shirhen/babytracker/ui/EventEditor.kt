@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -143,10 +144,11 @@ fun EventEditorDialog(
         Surface(
             shape = RoundedCornerShape(24.dp),
             color = MaterialTheme.colorScheme.surface,
-            modifier = Modifier.fillMaxWidth(0.94f).padding(vertical = 24.dp),
+            modifier = Modifier.systemBarsPadding().fillMaxWidth(0.94f).padding(vertical = 12.dp),
         ) {
+            Column(Modifier.padding(20.dp)) {
             Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()).padding(20.dp),
+                modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Text(
@@ -210,6 +212,8 @@ fun EventEditorDialog(
                     modifier = Modifier.fillMaxWidth(),
                 )
 
+            }
+                Spacer(Modifier.height(12.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     if (onDelete != null) {
                         TextButton(onClick = onDelete) { Text("מחיקה", color = Color(0xFFB3261E)) }

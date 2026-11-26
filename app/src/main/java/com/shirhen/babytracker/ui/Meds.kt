@@ -14,7 +14,9 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -95,8 +97,9 @@ fun MedGiveDialog(
     var note by remember { mutableStateOf("") }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth(0.94f).padding(vertical = 24.dp)) {
-            Column(Modifier.verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Surface(shape = RoundedCornerShape(24.dp), modifier = Modifier.systemBarsPadding().fillMaxWidth(0.94f).padding(vertical = 12.dp)) {
+            Column(Modifier.padding(20.dp)) {
+            Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("💊 מתן תרופה", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 TimeRow(time) { time = it }
                 HorizontalDivider()
@@ -132,6 +135,8 @@ fun MedGiveDialog(
                     value = note, onValueChange = { note = it },
                     label = { Text("הערה (לא חובה)") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
                 )
+            }
+                Spacer(Modifier.height(12.dp))
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Spacer(Modifier.weight(1f))
                     TextButton(onClick = onDismiss) { Text("ביטול") }
@@ -171,8 +176,9 @@ fun MedEditDialog(
     }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth(0.94f).padding(vertical = 24.dp)) {
-            Column(Modifier.verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Surface(shape = RoundedCornerShape(24.dp), modifier = Modifier.systemBarsPadding().fillMaxWidth(0.94f).padding(vertical = 12.dp)) {
+            Column(Modifier.padding(20.dp)) {
+            Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(if (initial == null) "💊 תרופה חדשה" else "💊 עריכת תרופה", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("שם התרופה") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = dose, onValueChange = { dose = it }, label = { Text("מינון (לא חובה), למשל 2.5 מ״ל") }, singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -191,6 +197,8 @@ fun MedEditDialog(
                     }
                     Switch(checked = active, onCheckedChange = { active = it })
                 }
+            }
+                Spacer(Modifier.height(12.dp))
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     if (initial != null && onDelete != null) {
                         TextButton(onClick = { onDelete(initial) }) { Text("מחיקה", color = overdueRed) }

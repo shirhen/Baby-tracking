@@ -12,7 +12,9 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -77,8 +79,9 @@ fun CheckInDialog(
     var healthy by remember { mutableStateOf(initial?.symptoms != null && initial.symptomList.isEmpty()) }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth(0.96f).padding(vertical = 20.dp)) {
-            Column(Modifier.verticalScroll(rememberScrollState()).padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Surface(shape = RoundedCornerShape(24.dp), modifier = Modifier.systemBarsPadding().fillMaxWidth(0.96f).padding(vertical = 12.dp)) {
+            Column(Modifier.padding(18.dp)) {
+            Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("📝 איך היה?", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(selected = e.checkScope != "DAY", onClick = { e = e.copy(checkScope = "RECENT") }, label = { Text("השעות האחרונות") })
@@ -146,6 +149,8 @@ fun CheckInDialog(
                     }
                 }
 
+            }
+                Spacer(Modifier.height(12.dp))
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     if (onDelete != null) TextButton(onClick = onDelete) { Text("מחיקה", color = Color(0xFFB3261E)) }
                     Spacer(Modifier.weight(1f))
