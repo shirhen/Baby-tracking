@@ -45,6 +45,10 @@ import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.shirhen.babytracker.R
 import com.shirhen.babytracker.data.Event
+import com.shirhen.babytracker.data.usedRight
+import com.shirhen.babytracker.data.usedLeft
+import com.shirhen.babytracker.data.bottleMl
+import com.shirhen.babytracker.data.FeedKind
 import com.shirhen.babytracker.data.MedSchedule
 import com.shirhen.babytracker.data.EventType
 import com.shirhen.babytracker.data.Repo
@@ -173,9 +177,10 @@ class BabyWidget : GlanceAppWidget() {
                 modifier = GlanceModifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp)
                     .clickable(actionStartActivity<MainActivity>()),
             )
+            // Right to left: feed | diaper, pump | poop, medication | bath.
             Row(modifier = GlanceModifier.fillMaxWidth().defaultWeight()) {
                 Tile(context, EventType.FEED, d.lastFeed, feedColor,
-                    extra = listOfNotNull(d.lastFeed?.let { Fmt.describe(it) }, d.nextSide?.let { "הבא: $it" }).joinToString(" · "),
+                    extra = d.lastFeed?.let { lastFeedLine(it) },
                     scale = scale,
                     modifier = GlanceModifier.defaultWeight().fillMaxHeight())
                 Tile(context, EventType.DIAPER, d.lastDiaper, diaperColor,
@@ -188,21 +193,21 @@ class BabyWidget : GlanceAppWidget() {
                     extra = d.lastPump?.let { Fmt.describe(it) },
                     scale = scale,
                     modifier = GlanceModifier.defaultWeight().fillMaxHeight())
-                Tile(context, EventType.BATH, d.lastBath, bathColor,
+                Tile(context, EventType.DIAPER, d.lastPoop, poopColor,
                     extra = null,
                     scale = scale,
-                    modifier = GlanceModifier.defaultWeight().fillMaxHeight())
+                    modifier = GlanceModifier.defaultWeight().fillMaxHeight(),
+                    label = "💩 קקי אחרון")
             }
             Row(modifier = GlanceModifier.fillMaxWidth().defaultWeight()) {
                 Tile(context, EventType.MED, d.lastMed, medColor,
                     extra = listOfNotNull(d.lastMed?.medName, d.medLine).joinToString(" · "),
                     scale = scale,
                     modifier = GlanceModifier.defaultWeight().fillMaxHeight())
-                Tile(context, EventType.DIAPER, d.lastPoop, poopColor,
+                Tile(context, EventType.BATH, d.lastBath, bathColor,
                     extra = null,
                     scale = scale,
-                    modifier = GlanceModifier.defaultWeight().fillMaxHeight(),
-                    label = "💩 קקי אחרון")
+                    modifier = GlanceModifier.defaultWeight().fillMaxHeight())
             }
         }
     }
@@ -229,7 +234,7 @@ class BabyWidget : GlanceAppWidget() {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    "$label  ＋",
+                    label,
                     style = TextStyle(color = ink, fontSize = scale.titleSp.sp, fontWeight = FontWeight.Medium),
                     maxLines = 1,
                 )
@@ -255,6 +260,23 @@ class BabyWidget : GlanceAppWidget() {
         return RemoteViews(context.packageName, R.layout.widget_chronometer).apply {
             setChronometer(R.id.chronometer, SystemClock.elapsedRealtime() - elapsed, null, true)
             setTextViewTextSize(R.id.chronometer, TypedValue.COMPLEX_UNIT_SP, textSp)
+        }
+    }
+
+    /** Last feed in a few words: "הנקה (ימין)", "תמ״ל 90 מ״ל", "שילוב (שני הצדדים) · 60 מ״ל". */
+    private fun lastFeedLine(e: Event): String {
+        val sides = when {
+            e.usedLeft && e.usedRight -> "שני הצדדים"
+            e.usedRight -> "ימין"
+            e.usedLeft -> "שמאל"
+            else -> null
+        }
+        val ml = e.bottleMl.takeIf { it > 0 }?.let { "$it מ״ל" }
+        return when (e.feedKind) {
+            FeedKind.BREAST, null -> "הנקה" + (sides?.let { " ($it)" } ?: "")
+            FeedKind.FORMULA -> listOfNotNull("תמ״ל", ml).joinToString(" ")
+            FeedKind.EXPRESSED -> listOfNotNull("שאוב", ml).joinToString(" ")
+            FeedKind.MIXED -> "שילוב" + (sides?.let { " ($it)" } ?: "") + (ml?.let { " · $it" } ?: "")
         }
     }
 
