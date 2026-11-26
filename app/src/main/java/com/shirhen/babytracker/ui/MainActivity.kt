@@ -1,5 +1,11 @@
 package com.shirhen.babytracker.ui
 
+import java.time.LocalDate
+import com.shirhen.babytracker.data.Medication
+import com.shirhen.babytracker.alerts.Notifier
+import androidx.activity.result.contract.ActivityResultContracts
+import android.os.Build
+import android.Manifest
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -45,9 +51,19 @@ import java.time.Instant
 import java.time.ZoneId
 
 class MainActivity : ComponentActivity() {
+    private val askNotifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent { AppRoot() }
+        // Pattern alerts and medication reminders need permission to notify (Android 13+). Ask once.
+        val prefs = Repo.prefs
+        if (Build.VERSION.SDK_INT >= 33 && !prefs.askedNotificationPermission &&
+            (prefs.patternAlerts.value || prefs.medReminders.value) && !Notifier.canNotify(this)
+        ) {
+            prefs.askedNotificationPermission = true
+            askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
     }
 
     override fun onResume() {
@@ -58,6 +74,11 @@ class MainActivity : ComponentActivity() {
 }
 
 private data class Editing(val event: Event, val isNew: Boolean)
+
+/** Which medication dialog is open. [preselect] is a medication id to tick in advance. */
+private data class GiveMed(val preselect: String?)
+private data class EditMed(val med: Medication?)
+private data class CheckIn(val event: Event?)
 
 private object Tab {
     const val CLOCK = 0
@@ -74,6 +95,11 @@ private fun AppRoot() {
     val events by eventsFlow.collectAsState(initial = emptyList())
     val profile by profileFlow.collectAsState(initial = null)
     val weights by weightsFlow.collectAsState(initial = emptyList())
+    val medsFlow = remember { Repo.db.meds().observeAll() }
+    val meds by medsFlow.collectAsState(initial = emptyList())
+    var giveMed by remember { mutableStateOf<GiveMed?>(null) }
+    var editMed by remember { mutableStateOf<EditMed?>(null) }
+    var checkIn by remember { mutableStateOf<CheckIn?>(null) }
     val nightAuto by Repo.prefs.nightAuto.collectAsState()
 
     var tab by rememberSaveable { mutableIntStateOf(Tab.CLOCK) }
@@ -107,8 +133,17 @@ private fun AppRoot() {
     val guideHint = guide?.perFeedMinMl?.let { "יעד משוער לארוחה: $it–${guide.perFeedMaxMl} מ״ל" }
     val suggestedSide = nextSideOf(events.lastBreastSide())
 
-    val startNew: (EventType) -> Unit = { type -> editing = Editing(newEvent(type, events), true) }
-    val startEdit: (Event) -> Unit = { e -> editing = Editing(e, false) }
+    val startNew: (EventType) -> Unit = { type ->
+        when (type) {
+            EventType.MED -> giveMed = GiveMed(null)
+            EventType.CHECKIN -> checkIn = CheckIn(null)
+            else -> editing = Editing(newEvent(type, events), true)
+        }
+    }
+    val startEdit: (Event) -> Unit = { e ->
+        if (e.type == EventType.CHECKIN) checkIn = CheckIn(e) else editing = Editing(e, false)
+    }
+    val ageDays = profile?.birthEpochDay?.let { (LocalDate.now().toEpochDay() - it).toInt() }
 
     /** Saves right away and offers undo. Used by the journal text box and night-mode long press. */
     val quickSave: (Event) -> Unit = { e ->
@@ -125,7 +160,7 @@ private fun AppRoot() {
     val repeatLast: (EventType) -> Unit = { type ->
         var e = newEvent(type, events)
         if (type == EventType.FEED && (e.feedKind == FeedKind.BREAST || e.feedKind == FeedKind.MIXED)) {
-            e = e.copy(lastSide = suggestedSide)
+            e = e.copy(lastSide = suggestedSide, breastSides = suggestedSide)
         }
         quickSave(e)
     }
@@ -162,12 +197,74 @@ private fun AppRoot() {
                         onOpenSettings = { tab = Tab.SETTINGS },
                         onOpenJournal = { tab = Tab.JOURNAL },
                         onNightMode = { nightOverride = true },
+                        meds = meds,
+                        onGiveMed = { id -> giveMed = GiveMed(id) },
+                        onQuickMed = { m ->
+                            quickSave(Event(type = EventType.MED, time = System.currentTimeMillis(), medId = m.id, medName = m.name))
+                        },
+                        onCheckIn = { e -> checkIn = CheckIn(e) },
                         modifier = m,
                     )
                     Tab.JOURNAL -> JournalScreen(events, guide, now, startNew, startEdit, quickSave, m)
                     Tab.DATA -> HistoryScreen(events, weights, profile, now, startEdit, m)
-                    else -> SettingsScreen(profile, weights, m)
+                    else -> SettingsScreen(profile, weights, meds, onEditMed = { editMed = EditMed(it) }, modifier = m)
                 }
+            }
+        }
+
+        giveMed?.let { g ->
+            key(g) {
+                MedGiveDialog(
+                    meds = meds,
+                    events = events,
+                    preselect = g.preselect,
+                    onDismiss = { giveMed = null },
+                    onSave = { list ->
+                        giveMed = null
+                        scope.launch {
+                            list.forEach { Repo.save(it) }
+                            val result = snackbar.showSnackbar(
+                                "נרשם: 💊 ${list.joinToString(", ") { it.medName ?: "" }} · ${Fmt.time(list.first().time)}",
+                                actionLabel = "ביטול",
+                                duration = SnackbarDuration.Short,
+                            )
+                            if (result == SnackbarResult.ActionPerformed) list.forEach { Repo.delete(it) }
+                        }
+                    },
+                    onAddMed = { editMed = EditMed(null) },
+                )
+            }
+        }
+
+        editMed?.let { em ->
+            key(em) {
+                MedEditDialog(
+                    initial = em.med,
+                    onDismiss = { editMed = null },
+                    onSave = { m ->
+                        editMed = null
+                        scope.launch { Repo.saveMed(m) }
+                    },
+                    onDelete = { m ->
+                        editMed = null
+                        scope.launch { Repo.deleteMed(m) }
+                    },
+                )
+            }
+        }
+
+        checkIn?.let { c ->
+            key(c) {
+                CheckInDialog(
+                    initial = c.event,
+                    ageDays = ageDays,
+                    onDismiss = { checkIn = null },
+                    onSave = { e ->
+                        checkIn = null
+                        scope.launch { Repo.save(e) }
+                    },
+                    onDelete = c.event?.let { ev -> { checkIn = null; scope.launch { Repo.delete(ev) } } },
+                )
             }
         }
 

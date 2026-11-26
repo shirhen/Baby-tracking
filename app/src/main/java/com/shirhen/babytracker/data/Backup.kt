@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import com.shirhen.babytracker.sync.FamilySync
 import com.shirhen.babytracker.sync.eventFromMap
+import com.shirhen.babytracker.sync.medFromMap
 import com.shirhen.babytracker.sync.profileFromMap
 import com.shirhen.babytracker.sync.toMap
 import com.shirhen.babytracker.sync.weightFromMap
@@ -40,6 +41,9 @@ object Backup {
                 put(JSONObject(e.toMap().filterValues { it != null }).put("id", e.id))
             }
         })
+        root.put("meds", JSONArray().apply {
+            Repo.db.meds().allIncludingDeleted().forEach { m -> put(JSONObject(m.toMap()).put("id", m.id)) }
+        })
         root.put("weights", JSONArray().apply {
             Repo.db.weights().allIncludingDeleted().sortedBy { it.time }.forEach { w ->
                 put(JSONObject(w.toMap()).put("id", w.id))
@@ -73,6 +77,13 @@ object Backup {
                     FamilySync.pushWeight(w)
                     weights++
                 }
+            }
+        }
+        root.optJSONArray("meds")?.let { arr ->
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                val m = medFromMap(o.getString("id"), o.toMap())
+                if (Repo.mergeRemote(m)) FamilySync.pushMed(m)
             }
         }
         var profile = false

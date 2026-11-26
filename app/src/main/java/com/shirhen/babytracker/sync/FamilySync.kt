@@ -9,6 +9,7 @@ import com.google.firebase.firestore.ListenerRegistration
 import com.shirhen.babytracker.BuildConfig
 import com.shirhen.babytracker.data.BabyProfile
 import com.shirhen.babytracker.data.Event
+import com.shirhen.babytracker.data.Medication
 import com.shirhen.babytracker.data.Repo
 import com.shirhen.babytracker.data.Weight
 import com.shirhen.babytracker.widget.WidgetRefresher
@@ -104,6 +105,16 @@ object FamilySync {
                         .map { weightFromMap(it.document.id, it.document.data) }
                     Repo.scope.launch { changes.forEach { Repo.mergeRemote(it) } }
                 }
+                listeners += fam.collection("meds").addSnapshotListener { snap, _ ->
+                    val changes = snap?.documentChanges.orEmpty()
+                        .filter { it.type != DocumentChange.Type.REMOVED }
+                        .map { medFromMap(it.document.id, it.document.data) }
+                    Repo.scope.launch {
+                        var changed = false
+                        changes.forEach { if (Repo.mergeRemote(it)) changed = true }
+                        if (changed) WidgetRefresher.refresh(Repo.appContext)
+                    }
+                }
                 listeners += fam.collection("meta").document("profile").addSnapshotListener { snap, _ ->
                     val data = snap?.data ?: return@addSnapshotListener
                     Repo.scope.launch {
@@ -135,6 +146,9 @@ object FamilySync {
             val e = eventFromMap(d.id, d.data ?: return@forEach) ?: return@forEach
             if (Repo.mergeRemote(e)) changed = true
         }
+        family(code).collection("meds").get().await().documents.forEach { d ->
+            if (Repo.mergeRemote(medFromMap(d.id, d.data ?: return@forEach))) changed = true
+        }
         family(code).collection("meta").document("profile").get().await().data?.let {
             if (Repo.mergeRemote(profileFromMap(it))) changed = true
         }
@@ -147,6 +161,8 @@ object FamilySync {
     fun pushEvent(e: Event) = write { family(it).collection("events").document(e.id).set(e.toMap()) }
 
     fun pushWeight(w: Weight) = write { family(it).collection("weights").document(w.id).set(w.toMap()) }
+
+    fun pushMed(m: Medication) = write { family(it).collection("meds").document(m.id).set(m.toMap()) }
 
     fun pushProfile(p: BabyProfile) = write { family(it).collection("meta").document("profile").set(p.toMap()) }
 
@@ -164,6 +180,7 @@ object FamilySync {
         val fam = family(code)
         Repo.db.events().allIncludingDeleted().forEach { fam.collection("events").document(it.id).set(it.toMap()) }
         Repo.db.weights().allIncludingDeleted().forEach { fam.collection("weights").document(it.id).set(it.toMap()) }
+        Repo.db.meds().allIncludingDeleted().forEach { fam.collection("meds").document(it.id).set(it.toMap()) }
         Repo.db.profile().get()?.takeIf { it.updatedAt > 0 }?.let {
             // Do not overwrite a newer profile the other parent already saved.
             val remote = fam.collection("meta").document("profile").get().await().data?.let(::profileFromMap)

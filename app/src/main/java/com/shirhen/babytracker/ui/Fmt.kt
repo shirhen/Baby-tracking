@@ -4,6 +4,9 @@ import com.shirhen.babytracker.data.Event
 import com.shirhen.babytracker.data.EventType
 import com.shirhen.babytracker.data.FeedKind
 import com.shirhen.babytracker.data.pumpedMl
+import com.shirhen.babytracker.data.symptomList
+import com.shirhen.babytracker.data.usedLeft
+import com.shirhen.babytracker.data.usedRight
 import com.shirhen.babytracker.data.toLocalDate
 import java.time.Instant
 import java.time.LocalDate
@@ -66,6 +69,8 @@ object Fmt {
         EventType.DIAPER -> "🧷"
         EventType.BATH -> "🛁"
         EventType.PUMP -> "🫧"
+        EventType.MED -> "💊"
+        EventType.CHECKIN -> "📝"
     }
 
     fun title(type: EventType) = when (type) {
@@ -73,6 +78,8 @@ object Fmt {
         EventType.DIAPER -> "חיתול"
         EventType.BATH -> "מקלחת"
         EventType.PUMP -> "שאיבה"
+        EventType.MED -> "תרופה"
+        EventType.CHECKIN -> "סיכום"
     }
 
     fun feedKind(kind: FeedKind?) = when (kind) {
@@ -82,6 +89,13 @@ object Fmt {
         FeedKind.MIXED -> "שילוב"
         null -> "האכלה"
     }
+
+    val cryLabels = listOf("כמעט לא", "מעט", "בינוני", "הרבה", "הרבה מאוד")
+    val alertLabels = listOf("ישנוני", "רגוע", "ערני", "ערני מאוד", "לא נרגע")
+    fun cryLabel(level: Int) = cryLabels.getOrElse(level - 1) { "?" }
+    fun alertLabel(level: Int) = alertLabels.getOrElse(level - 1) { "?" }
+    val gasLabels = listOf("בלי", "מעט", "הרבה", "המון")
+    fun gasLabel(level: Int) = gasLabels.getOrElse(level - 1) { "?" }
 
     fun side(s: String?) = when (s) {
         "L" -> "שמאל"
@@ -95,8 +109,15 @@ object Fmt {
             add(feedKind(e.feedKind))
             if (e.leftMin > 0) add("ש׳ ${e.leftMin} ד׳")
             if (e.rightMin > 0) add("י׳ ${e.rightMin} ד׳")
-            if (e.leftMin == 0 && e.rightMin == 0 && e.breastTotalMin > 0) add("${e.breastTotalMin} ד׳")
-            if (e.leftMin == 0 && e.rightMin == 0 && e.lastSide != null) add("צד ${side(e.lastSide)}")
+            if (e.leftMin == 0 && e.rightMin == 0) {
+                // No per-side minutes: name the breasts used, then the total time if there is one.
+                when {
+                    e.usedLeft && e.usedRight -> add("שני הצדדים")
+                    e.usedLeft -> add("שמאל")
+                    e.usedRight -> add("ימין")
+                }
+                if (e.breastTotalMin > 0) add("${e.breastTotalMin} ד׳")
+            }
             if (e.formulaMl > 0) add("תמ״ל ${e.formulaMl} מ״ל")
             if (e.expressedMl > 0) add("שאוב ${e.expressedMl} מ״ל")
         }.joinToString(" · ")
@@ -111,6 +132,17 @@ object Fmt {
             add("${e.pumpedMl} מ״ל")
             if (e.pumpLeftMl > 0 && e.pumpRightMl > 0) add("ש׳ ${e.pumpLeftMl} · י׳ ${e.pumpRightMl}")
             if (e.durationMin > 0) add("${e.durationMin} ד׳")
+        }.joinToString(" · ")
+        EventType.MED -> e.medName?.takeIf { it.isNotBlank() } ?: "תרופה"
+        EventType.CHECKIN -> buildList {
+            add(if (e.checkScope == "DAY") "היום כולו" else "השעות האחרונות")
+            e.cryLevel?.let { add("בכי: ${cryLabel(it)}") }
+            e.alertLevel?.let { add("ערנות: ${alertLabel(it)}") }
+            e.gasLevel?.let { add("גזים: ${gasLabel(it)}") }
+            e.tummyMin?.let { add(if (it > 0) "זמן בטן $it ד׳" else "בלי זמן בטן") }
+            e.symptomList.forEach { add(it.label) }
+            e.tempC?.let { add("חום %.1f°".format(it)) }
+            if (e.symptoms != null && e.symptomList.isEmpty() && e.tempC == null) add("בריא")
         }.joinToString(" · ")
     }.let { base -> if (e.note.isNotBlank()) "$base · ${e.note}" else base }
 }

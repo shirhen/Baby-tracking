@@ -1,5 +1,11 @@
 package com.shirhen.babytracker.ui
 
+import com.shirhen.babytracker.data.Repo
+import com.shirhen.babytracker.data.PatternAlert
+import com.shirhen.babytracker.data.Medication
+import com.shirhen.babytracker.data.Alerts
+import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.collectAsState
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -58,8 +64,19 @@ fun HomeScreen(
     onOpenSettings: () -> Unit,
     onOpenJournal: () -> Unit,
     onNightMode: () -> Unit,
+    meds: List<Medication>,
+    onGiveMed: (String?) -> Unit,
+    onQuickMed: (Medication) -> Unit,
+    onCheckIn: (Event?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val patternOn by Repo.prefs.patternAlerts.collectAsState()
+    val remindersOn by Repo.prefs.medReminders.collectAsState()
+    val diaperWarningOn by Repo.prefs.diaperWarning.collectAsState()
+    val alerts = remember(events, meds, now / 60_000, patternOn, remindersOn) {
+        (if (remindersOn) Alerts.medReminders(meds, events, now) else emptyList()) +
+            (if (patternOn) Alerts.pattern(events, now) else emptyList())
+    }
     val last24 = events.filter { it.time >= now - DAY_MS }
     val s24 = summarize(last24)
     fun last(type: EventType) = events.firstOrNull { it.type == type }
@@ -86,6 +103,10 @@ fun HomeScreen(
             }
         }
 
+        if (alerts.isNotEmpty()) {
+            item { AlertsCard(alerts) { onGiveMed(null) } }
+        }
+
         item {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                 ClockDial(
@@ -101,18 +122,30 @@ fun HomeScreen(
         }
 
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                MiniSince(EventType.DIAPER, last(EventType.DIAPER), now, Modifier.weight(1f)) { onNew(EventType.DIAPER) }
-                MiniSince(EventType.PUMP, last(EventType.PUMP), now, Modifier.weight(1f)) { onNew(EventType.PUMP) }
-                MiniSince(EventType.BATH, last(EventType.BATH), now, Modifier.weight(1f)) { onNew(EventType.BATH) }
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    MiniSince("🧷 חיתול", Palette.diaper, last(EventType.DIAPER), now, Modifier.weight(1f)) { onNew(EventType.DIAPER) }
+                    MiniSince(
+                        "💩 קקי אחרון", Palette.feed,
+                        events.firstOrNull { it.type == EventType.DIAPER && it.dirty }, now, Modifier.weight(1f),
+                    ) { onNew(EventType.DIAPER) }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    MiniSince("🫧 שאיבה", Palette.pump, last(EventType.PUMP), now, Modifier.weight(1f)) { onNew(EventType.PUMP) }
+                    MiniSince("🛁 מקלחת", Palette.bath, last(EventType.BATH), now, Modifier.weight(1f)) { onNew(EventType.BATH) }
+                }
             }
         }
+
+        item { MedsCard(meds, events, now, onGive = onGiveMed, onQuick = onQuickMed) }
+
+        item { CheckInCard(events, onOpen = onCheckIn) }
 
         item { GuideCard(guide, s24.bottleMl, s24.breastMin, onOpenSettings) }
 
         item {
             val haveFullDay = events.any { it.time < now - DAY_MS }
-            DiaperCard(s24.wet, s24.dirty, guide?.chronoDays, haveFullDay)
+            DiaperCard(s24.wet, s24.dirty, guide?.chronoDays, haveFullDay, diaperWarningOn)
         }
 
         item {
@@ -130,14 +163,14 @@ fun HomeScreen(
 }
 
 @Composable
-private fun MiniSince(type: EventType, last: Event?, now: Long, modifier: Modifier, onClick: () -> Unit) {
+private fun MiniSince(label: String, color: Color, last: Event?, now: Long, modifier: Modifier, onClick: () -> Unit) {
     Card(
         modifier = modifier.clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = Palette.light(type), contentColor = Palette.ink),
+        colors = CardDefaults.cardColors(containerColor = color, contentColor = Palette.ink),
         shape = RoundedCornerShape(16.dp),
     ) {
         Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
-            Text("${Fmt.emoji(type)} ${Fmt.title(type)}", style = MaterialTheme.typography.labelMedium)
+            Text(label, style = MaterialTheme.typography.labelMedium)
             Text(if (last == null) "—" else Fmt.since(last.time, now), fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Text(last?.let { Fmt.time(it.time) } ?: " ", style = MaterialTheme.typography.labelSmall)
         }
@@ -151,7 +184,7 @@ fun ActionFab(onPick: (EventType) -> Unit) {
     Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         AnimatedVisibility(visible = open) {
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                listOf(EventType.BATH, EventType.PUMP, EventType.DIAPER, EventType.FEED).forEach { t ->
+                listOf(EventType.CHECKIN, EventType.MED, EventType.BATH, EventType.PUMP, EventType.DIAPER, EventType.FEED).forEach { t ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Surface(shape = RoundedCornerShape(10.dp), tonalElevation = 2.dp, shadowElevation = 2.dp) {
                             Text(Fmt.title(t), modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp))
@@ -168,6 +201,24 @@ fun ActionFab(onPick: (EventType) -> Unit) {
         }
         FloatingActionButton(onClick = { open = !open }) {
             Icon(if (open) Icons.Filled.Close else Icons.Filled.Add, contentDescription = if (open) "סגירה" else "הוספה")
+        }
+    }
+}
+
+/** Changes from the usual pattern and overdue medications, shown at the top of the home screen. */
+@Composable
+private fun AlertsCard(alerts: List<PatternAlert>, onGiveMed: () -> Unit) {
+    Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = Palette.warn, contentColor = Palette.ink)) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            alerts.forEach { a ->
+                Column(Modifier.fillMaxWidth().let { if (a.isMedReminder) it.clickable(onClick = onGiveMed) else it }) {
+                    Text(a.title, fontWeight = FontWeight.Bold)
+                    Text(a.text, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+            if (alerts.any { !it.isMedReminder }) {
+                Text(Alerts.NOTE, style = MaterialTheme.typography.labelSmall)
+            }
         }
     }
 }

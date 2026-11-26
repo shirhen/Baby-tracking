@@ -8,14 +8,16 @@ import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import com.shirhen.babytracker.alerts.Notifier
 import com.shirhen.babytracker.widget.WidgetRefresher
 import java.util.concurrent.TimeUnit
 
-/** Every ~15 minutes: pull the other parent's entries and refresh the widget's "time ago" text. */
+/** Every ~15 minutes: pull the other parent's entries, refresh the widget, and send pattern / medication notices. */
 class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
         runCatching { FamilySync.pullOnce() }
         WidgetRefresher.refresh(applicationContext)
+        runCatching { Notifier.check(applicationContext) }
         return Result.success()
     }
 

@@ -122,7 +122,7 @@ fun ClockDial(
                 when (e.type) {
                     EventType.FEED -> drawCircle(color, 7.dp.toPx(), point(a, rFeed))
                     EventType.DIAPER -> drawCircle(color, 5.dp.toPx(), point(a, rDiaper))
-                    EventType.PUMP, EventType.BATH -> drawCircle(color, 4.dp.toPx(), point(a, rOther))
+                    EventType.PUMP, EventType.BATH, EventType.MED, EventType.CHECKIN -> drawCircle(color, 4.dp.toPx(), point(a, rOther))
                 }
             }
 

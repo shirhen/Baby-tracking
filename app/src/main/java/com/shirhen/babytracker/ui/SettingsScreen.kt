@@ -1,5 +1,7 @@
 package com.shirhen.babytracker.ui
 
+import com.shirhen.babytracker.data.Medication
+import com.shirhen.babytracker.alerts.Notifier
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -53,7 +55,13 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 
 @Composable
-fun SettingsScreen(profile: BabyProfile?, weights: List<Weight>, modifier: Modifier = Modifier) {
+fun SettingsScreen(
+    profile: BabyProfile?,
+    weights: List<Weight>,
+    meds: List<Medication>,
+    onEditMed: (Medication?) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Column(
         modifier = modifier.verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -62,6 +70,8 @@ fun SettingsScreen(profile: BabyProfile?, weights: List<Weight>, modifier: Modif
         UserCard()
         NightCard()
         ProfileCard(profile)
+        SettingsCard("💊 תרופות") { MedsSettings(meds, onEditMed) }
+        AlertsSettingsCard()
         SettingsCard("שקילות") { Muted("הוספה ומעקב משקל: בלשונית נתונים ← משקל.") }
         FamilyCard()
         BackupCard()
@@ -302,5 +312,59 @@ private fun BackupCard() {
             },
             dismissButton = { TextButton(onClick = { confirmRestore = null }) { Text("ביטול") } },
         )
+    }
+}
+
+@Composable
+private fun AlertsSettingsCard() {
+    val context = LocalContext.current
+    val prefs = Repo.prefs
+    val pattern by prefs.patternAlerts.collectAsState()
+    val meds by prefs.medReminders.collectAsState()
+    val diaper by prefs.diaperWarning.collectAsState()
+    var granted by remember { mutableStateOf(Notifier.canNotify(context)) }
+    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted = it }
+
+    fun ensurePermission() {
+        if (!granted && android.os.Build.VERSION.SDK_INT >= 33) ask.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+    }
+
+    @Composable
+    fun ToggleRow(title: String, desc: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(title)
+                Muted(desc)
+            }
+            Switch(checked = checked, onCheckedChange = onChange)
+        }
+    }
+
+    SettingsCard("🔔 התראות") {
+        ToggleRow(
+            "שינוי בדפוס",
+            "התראה כשה-24 שעות האחרונות שונות מהשבוע הקודם שלו: מרווח ארוך מהאכלה, פחות האכלות, פחות מ״ל, פחות חיתולים רטובים, הרבה זמן בלי קקי. מתחיל אחרי 3 ימי תיעוד.",
+            pattern,
+        ) { prefs.setPatternAlerts(it); if (it) ensurePermission() }
+        ToggleRow(
+            "תזכורות לתרופות",
+            "התראה כשעברה שעת מתן ועוד לא נרשם שהתרופה ניתנה. נבדק כל כ-15 דקות, אז התזכורת יכולה להגיע באיחור קטן.",
+            meds,
+        ) { prefs.setMedReminders(it); if (it) ensurePermission() }
+        ToggleRow(
+            "אזהרת חיתולים רטובים",
+            "הודעה במסך הבית כשיש פחות מ-6 חיתולים רטובים ב-24 שעות. אפשר לכבות אם מחליפים רק כשהחיתול מלא.",
+            diaper,
+        ) { prefs.setDiaperWarning(it) }
+        if (!granted && (pattern || meds)) {
+            Text("ההתראות חסומות בטלפון.", color = MaterialTheme.colorScheme.error)
+            TextButton(onClick = {
+                if (android.os.Build.VERSION.SDK_INT >= 33) ensurePermission()
+                else context.startActivity(
+                    Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                        .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName),
+                )
+            }) { Text("לאפשר התראות") }
+        }
     }
 }

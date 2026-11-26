@@ -67,6 +67,26 @@ object Repo {
         return false
     }
 
+    // ---- Medications ----
+
+    suspend fun saveMed(med: Medication) {
+        val stamped = med.copy(updatedAt = System.currentTimeMillis())
+        db.meds().upsert(stamped)
+        FamilySync.pushMed(stamped)
+        WidgetRefresher.refresh(appContext)
+    }
+
+    suspend fun deleteMed(med: Medication) = saveMed(med.copy(deleted = true))
+
+    suspend fun mergeRemote(remote: Medication): Boolean {
+        val local = db.meds().byId(remote.id)
+        if (local == null || remote.updatedAt > local.updatedAt) {
+            db.meds().upsert(remote)
+            return true
+        }
+        return false
+    }
+
     // ---- Profile ----
 
     suspend fun saveProfile(profile: BabyProfile) {

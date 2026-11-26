@@ -48,6 +48,11 @@ import androidx.compose.ui.window.DialogProperties
 import com.shirhen.babytracker.data.Event
 import com.shirhen.babytracker.data.EventType
 import com.shirhen.babytracker.data.FeedKind
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
+import com.shirhen.babytracker.data.usedLeft
+import com.shirhen.babytracker.data.usedRight
 import kotlinx.coroutines.delay
 
 /** A new entry pre-filled from the last one of the same kind, so a repeat feed is one tap. */
@@ -70,7 +75,14 @@ fun newEvent(type: EventType, history: List<Event>): Event {
             Event(type = type, time = now, pumpLeftMl = last?.pumpLeftMl ?: 0, pumpRightMl = last?.pumpRightMl ?: 0, durationMin = last?.durationMin ?: 0)
         }
         EventType.BATH -> Event(type = type, time = now)
+        EventType.MED -> Event(type = type, time = now)
+        EventType.CHECKIN -> Event(type = type, time = now)
     }
+}
+
+private fun sidesOf(e: Event): String = buildString {
+    if (e.usedLeft) append('L')
+    if (e.usedRight) append('R')
 }
 
 private fun FeedKind?.usesBreast() = this == FeedKind.BREAST || this == FeedKind.MIXED
@@ -93,6 +105,10 @@ fun EventEditorDialog(
     var secR by remember { mutableIntStateOf(initial.rightMin * 60) }
     var running by remember { mutableStateOf<String?>(null) }
     var totalMin by remember { mutableIntStateOf(initial.breastTotalMin) }
+    // Breasts used. A new feed starts with the suggested side selected; an edit keeps what was saved.
+    var sides by remember {
+        mutableStateOf(if (isNew && initial.breastSides == null && initial.lastSide == null) suggestedSide ?: "" else sidesOf(initial))
+    }
     // Total-only mode when editing an entry that was saved that way.
     var bySide by remember { mutableStateOf(!(initial.breastTotalMin > 0 && initial.leftMin + initial.rightMin == 0)) }
 
@@ -106,10 +122,17 @@ fun EventEditorDialog(
 
     fun build(): Event = when (e.type) {
         EventType.FEED -> e.copy(
-            leftMin = if (e.feedKind.usesBreast() && bySide) (secL + 30) / 60 else 0,
-            rightMin = if (e.feedKind.usesBreast() && bySide) (secR + 30) / 60 else 0,
+            leftMin = if (e.feedKind.usesBreast() && bySide && 'L' in sides) (secL + 30) / 60 else 0,
+            rightMin = if (e.feedKind.usesBreast() && bySide && 'R' in sides) (secR + 30) / 60 else 0,
             breastTotalMin = if (e.feedKind.usesBreast() && !bySide) totalMin else 0,
-            lastSide = if (e.feedKind.usesBreast()) e.lastSide else null,
+            breastSides = if (e.feedKind.usesBreast()) sides.ifEmpty { null } else null,
+            // One side: that's where it ended. Both: the side marked as last (defaults to the one tapped last).
+            lastSide = when {
+                !e.feedKind.usesBreast() -> null
+                sides == "L" || sides == "R" -> sides
+                sides.length == 2 -> e.lastSide?.takeIf { it in sides } ?: sides.last().toString()
+                else -> null
+            },
             formulaMl = if (e.feedKind.usesFormula()) e.formulaMl else 0,
             expressedMl = if (e.feedKind.usesExpressed()) e.expressedMl else 0,
         )
@@ -143,7 +166,22 @@ fun EventEditorDialog(
                         running = running,
                         setRunning = { side ->
                             running = side
-                            if (side != null) e = e.copy(lastSide = side)
+                            if (side != null) {
+                                // Starting a side's timer marks that breast as used.
+                                if (side !in sides) sides = (sides + side).toList().sorted().joinToString("")
+                                e = e.copy(lastSide = side)
+                            }
+                        },
+                        sides = sides,
+                        toggleSide = { side ->
+                            if (side in sides) {
+                                sides = sides.replace(side, "")
+                                if (running == side) running = null
+                            } else {
+                                sides = (sides + side).toList().sorted().joinToString("")
+                                // The side tapped last is taken as the one the feed ended on.
+                                e = e.copy(lastSide = side)
+                            }
                         },
                         bySide = bySide,
                         setBySide = { mode ->
@@ -160,6 +198,8 @@ fun EventEditorDialog(
                     EventType.DIAPER -> DiaperButtons { wet, dirty -> onSave(e.copy(wet = wet, dirty = dirty)) }
                     EventType.PUMP -> PumpFields(e) { e = it }
                     EventType.BATH -> Muted("מקלחת נשמרת עם השעה שנבחרה.")
+                    EventType.MED -> Text("💊 ${e.medName ?: "תרופה"}", style = MaterialTheme.typography.titleMedium)
+                    EventType.CHECKIN -> Muted(Fmt.describe(e))
                 }
 
                 OutlinedTextField(
@@ -196,6 +236,8 @@ private fun FeedFields(
     setSecR: (Int) -> Unit,
     running: String?,
     setRunning: (String?) -> Unit,
+    sides: String,
+    toggleSide: (String) -> Unit,
     bySide: Boolean,
     setBySide: (Boolean) -> Unit,
     totalMin: Int,
@@ -214,23 +256,41 @@ private fun FeedFields(
     }
 
     if (e.feedKind.usesBreast()) {
-        suggestedSide?.let { Muted("להתחיל בצד: ${Fmt.side(it)} (הפוך מהפעם הקודמת)") }
+        Text("מאיזה צד אכל?", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        // Right-to-left layout: right breast on the right, left breast on the left.
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+            SideToggle("ימין", "R" in sides, suggestedSide == "R", Modifier.weight(1f)) { toggleSide("R") }
+            SideToggle("שמאל", "L" in sides, suggestedSide == "L", Modifier.weight(1f)) { toggleSide("L") }
+        }
+        Muted(
+            when {
+                sides.isEmpty() -> "אפשר לסמן צד אחד או את שניהם."
+                sides.length == 2 -> "שני הצדדים · סיים ב${Fmt.side(e.lastSide?.takeIf { it in sides } ?: sides.last().toString())}"
+                else -> "צד ${Fmt.side(sides)}"
+            } + (suggestedSide?.let { " · מוצע: ${Fmt.side(it)} (הפוך מהפעם הקודמת)" } ?: ""),
+        )
+        if (sides.length == 2) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Muted("סיים ב:")
+                FilterChip(selected = e.lastSide == "R", onClick = { onChange(e.copy(lastSide = "R")) }, label = { Text("ימין") })
+                FilterChip(selected = e.lastSide == "L", onClick = { onChange(e.copy(lastSide = "L")) }, label = { Text("שמאל") })
+            }
+        }
+
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("משך:")
+            Text("משך (לא חובה):")
             FilterChip(selected = bySide, onClick = { setBySide(true) }, label = { Text("לפי צד") })
             FilterChip(selected = !bySide, onClick = { setBySide(false) }, label = { Text("סה״כ") })
         }
         if (bySide) {
-            Muted("מקלידים דקות, או מפעילים טיימר ▶ – מה שנוח. אפשר להשאיר צד ריק.")
-            SideTimer("שמאל", secL, running == "L", { setRunning(if (running == "L") null else "L") }, setSecL)
-            SideTimer("ימין", secR, running == "R", { setRunning(if (running == "R") null else "R") }, setSecR)
+            if (sides.isEmpty()) {
+                Muted("סמנו צד למעלה כדי להזין דקות או להפעיל טיימר.")
+            } else {
+                if ('R' in sides) SideTimer("ימין", secR, running == "R", { setRunning(if (running == "R") null else "R") }, setSecR)
+                if ('L' in sides) SideTimer("שמאל", secL, running == "L", { setRunning(if (running == "L") null else "L") }, setSecL)
+            }
         } else {
             Stepper("משך כולל", totalMin, setTotalMin, step = 5, unit = "ד׳", max = 240)
-        }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("סיים בצד:")
-            FilterChip(selected = e.lastSide == "L", onClick = { onChange(e.copy(lastSide = "L")) }, label = { Text("שמאל") })
-            FilterChip(selected = e.lastSide == "R", onClick = { onChange(e.copy(lastSide = "R")) }, label = { Text("ימין") })
         }
     }
     if (e.feedKind.usesFormula()) {
@@ -291,4 +351,22 @@ private fun PumpFields(e: Event, onChange: (Event) -> Unit) {
     Stepper("צד ימין", e.pumpRightMl, { onChange(e.copy(pumpRightMl = it)) })
     Stepper("משך", e.durationMin, { onChange(e.copy(durationMin = it)) }, step = 5, unit = "ד׳", max = 180)
     Text("סה״כ: ${e.pumpLeftMl + e.pumpRightMl} מ״ל", fontWeight = FontWeight.Bold)
+}
+
+/** Big on/off tile for one breast. */
+@Composable
+private fun SideToggle(label: String, selected: Boolean, suggested: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val bg = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+    val fg = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(18.dp))
+            .background(bg)
+            .clickable(onClick = onClick)
+            .padding(vertical = 18.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(if (selected) "✓ $label" else label, color = fg, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        if (suggested) Text("מוצע", color = fg, style = MaterialTheme.typography.labelSmall)
+    }
 }

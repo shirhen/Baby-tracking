@@ -88,17 +88,24 @@ fun GuideCard(guide: FeedingGuide.Result?, bottle24: Int, breast24: Int, onOpenS
 }
 
 @Composable
-fun DiaperCard(wet24: Int, dirty24: Int, chronoDays: Int?, haveFullDay: Boolean) {
+fun DiaperCard(wet24: Int, dirty24: Int, chronoDays: Int?, haveFullDay: Boolean, warningOn: Boolean) {
     Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("🧷 חיתולים ב-24 שעות: $wet24 רטובים · $dirty24 מלוכלכים", fontWeight = FontWeight.Medium)
-            val low = chronoDays != null && chronoDays >= 5 && haveFullDay && wet24 < 6
+            val low = warningOn && chronoDays != null && chronoDays >= 5 && haveFullDay && wet24 < 6
             if (low) {
                 Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Palette.warn).padding(10.dp)) {
-                    Text("פחות מ-6 חיתולים רטובים ביממה אחרי יום 5 נחשב סימן אזהרה. כדאי לבדוק עם רופא/ת הילדים או טיפת חלב.")
+                    Text(
+                        "פחות מ-6 חיתולים רטובים ב-24 השעות האחרונות. אם כל חיתול היה כבד ומלא, זה בדרך כלל בסדר. " +
+                            "אם החיתולים קלים, השתן כהה או שהוא ישנוני במיוחד – כדאי לבדוק עם רופא/ת הילדים או טיפת חלב.",
+                        color = Palette.ink,
+                    )
                 }
             } else {
-                Muted("אחרי יום 5: מצופים לפחות 6 חיתולים רטובים ביממה.")
+                Muted(
+                    "המדד: לפחות 6 חיתולים רטובים-כבדים ביממה (כל אחד כמו כ-45 מ״ל מים). " +
+                        "סופרים חיתולים שהוחלפו, לא כל פיפי – אם מחליפים רק כשמלא, גם פחות החלפות יכולות להיות תקינות.",
+                )
             }
         }
     }
@@ -115,12 +122,7 @@ fun EventRow(e: Event, onClick: () -> Unit) {
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        val color = when (e.type) {
-            EventType.FEED -> Palette.feed
-            EventType.DIAPER -> Palette.diaper
-            EventType.PUMP -> Palette.pump
-            EventType.BATH -> Palette.bath
-        }
+        val color = Palette.light(e.type)
         Box(Modifier.size(40.dp).clip(CircleShape).background(color), contentAlignment = Alignment.Center) {
             Text(Fmt.emoji(e.type), fontSize = 20.sp)
         }

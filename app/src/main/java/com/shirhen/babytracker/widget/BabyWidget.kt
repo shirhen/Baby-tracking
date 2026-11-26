@@ -41,6 +41,7 @@ import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.shirhen.babytracker.R
 import com.shirhen.babytracker.data.Event
+import com.shirhen.babytracker.data.MedSchedule
 import com.shirhen.babytracker.data.EventType
 import com.shirhen.babytracker.data.Repo
 import com.shirhen.babytracker.data.lastBreastSide
@@ -69,6 +70,10 @@ private data class WidgetData(
     val lastDiaper: Event?,
     val lastPump: Event?,
     val lastBath: Event?,
+    val lastMed: Event?,
+    val lastPoop: Event?,
+    /** e.g. "הבא: אקמול 20:00" or "⚠️ ויטמין D 08:00". */
+    val medLine: String?,
     val nextSide: String?,
     val perFeed: String?,
     val todayMl: Int,
@@ -82,9 +87,11 @@ private val feedColor = ColorProvider(Color(0xFFF6DCC8))
 private val diaperColor = ColorProvider(Color(0xFFDCE9F5))
 private val pumpColor = ColorProvider(Color(0xFFE6DFF3))
 private val bathColor = ColorProvider(Color(0xFFD9EEE1))
+private val medColor = ColorProvider(Color(0xFFFBEAF0))
+private val poopColor = ColorProvider(Color(0xFFFAEEDA))
 
 /**
- * Four tiles, like the cards in the app. Each tile shows a live count-up timer since the last
+ * Six tiles, like the cards in the app. Each tile shows a live count-up timer since the last
  * entry (a native Chronometer, so it ticks without waking the app) and opens quick entry on tap.
  */
 class BabyWidget : GlanceAppWidget() {
@@ -110,6 +117,15 @@ class BabyWidget : GlanceAppWidget() {
             lastDiaper = dao.last(EventType.DIAPER),
             lastPump = dao.last(EventType.PUMP),
             lastBath = dao.last(EventType.BATH),
+            lastMed = dao.last(EventType.MED),
+            lastPoop = recent.firstOrNull { it.type == EventType.DIAPER && it.dirty }
+                ?: dao.since(0).firstOrNull { it.type == EventType.DIAPER && it.dirty },
+            medLine = run {
+                val statuses = Repo.db.meds().active().map { MedSchedule.status(it, recent, now) }
+                statuses.firstOrNull { it.overdueSlot != null }?.let { "⚠️ ${it.med.name} ${Fmt.time(it.overdueSlot!!)}" }
+                    ?: statuses.filter { it.nextDue != null }.minByOrNull { it.nextDue!! }
+                        ?.let { "הבא: ${it.med.name} ${Fmt.time(it.nextDue!!)}" }
+            },
             nextSide = when (recent.lastBreastSide()) { "L" -> "ימין"; "R" -> "שמאל"; else -> null },
             perFeed = guide?.perFeedMinMl?.let { "${it}–${guide.perFeedMaxMl}" },
             todayMl = todaySummary.bottleMl,
@@ -153,11 +169,28 @@ class BabyWidget : GlanceAppWidget() {
                     extra = null,
                     modifier = GlanceModifier.defaultWeight().fillMaxHeight())
             }
+            Row(modifier = GlanceModifier.fillMaxWidth().defaultWeight()) {
+                Tile(context, EventType.MED, d.lastMed, medColor,
+                    extra = listOfNotNull(d.lastMed?.medName, d.medLine).joinToString(" · "),
+                    modifier = GlanceModifier.defaultWeight().fillMaxHeight())
+                Tile(context, EventType.DIAPER, d.lastPoop, poopColor,
+                    extra = null,
+                    modifier = GlanceModifier.defaultWeight().fillMaxHeight(),
+                    label = "💩 קקי אחרון")
+            }
         }
     }
 
     @Composable
-    private fun Tile(context: Context, type: EventType, last: Event?, color: ColorProvider, extra: String?, modifier: GlanceModifier) {
+    private fun Tile(
+        context: Context,
+        type: EventType,
+        last: Event?,
+        color: ColorProvider,
+        extra: String?,
+        modifier: GlanceModifier,
+        label: String = "${Fmt.emoji(type)} ${Fmt.title(type)}",
+    ) {
         Box(modifier = modifier.padding(3.dp)) {
             Column(
                 modifier = GlanceModifier
@@ -169,7 +202,7 @@ class BabyWidget : GlanceAppWidget() {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    "${Fmt.emoji(type)} ${Fmt.title(type)}  ＋",
+                    "$label  ＋",
                     style = TextStyle(color = ink, fontSize = 12.sp, fontWeight = FontWeight.Medium),
                     maxLines = 1,
                 )

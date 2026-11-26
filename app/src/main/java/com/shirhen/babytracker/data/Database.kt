@@ -51,6 +51,24 @@ interface WeightDao {
 }
 
 @Dao
+interface MedDao {
+    @Query("SELECT * FROM meds WHERE deleted = 0 ORDER BY active DESC, name")
+    fun observeAll(): Flow<List<Medication>>
+
+    @Query("SELECT * FROM meds WHERE deleted = 0 AND active = 1 ORDER BY name")
+    suspend fun active(): List<Medication>
+
+    @Query("SELECT * FROM meds WHERE id = :id")
+    suspend fun byId(id: String): Medication?
+
+    @Query("SELECT * FROM meds")
+    suspend fun allIncludingDeleted(): List<Medication>
+
+    @Upsert
+    suspend fun upsert(med: Medication)
+}
+
+@Dao
 interface ProfileDao {
     @Query("SELECT * FROM profile WHERE id = 1")
     fun observe(): Flow<BabyProfile?>
@@ -68,11 +86,32 @@ private val MIGRATION_1_2 = object : Migration(1, 2) {
     }
 }
 
-@Database(entities = [Event::class, Weight::class, BabyProfile::class], version = 2, exportSchema = true)
+private val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE events ADD COLUMN breastSides TEXT")
+        db.execSQL("ALTER TABLE events ADD COLUMN medId TEXT")
+        db.execSQL("ALTER TABLE events ADD COLUMN medName TEXT")
+        db.execSQL("ALTER TABLE events ADD COLUMN checkScope TEXT")
+        db.execSQL("ALTER TABLE events ADD COLUMN cryLevel INTEGER")
+        db.execSQL("ALTER TABLE events ADD COLUMN alertLevel INTEGER")
+        db.execSQL("ALTER TABLE events ADD COLUMN gasLevel INTEGER")
+        db.execSQL("ALTER TABLE events ADD COLUMN tummyMin INTEGER")
+        db.execSQL("ALTER TABLE events ADD COLUMN symptoms TEXT")
+        db.execSQL("ALTER TABLE events ADD COLUMN tempC REAL")
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS meds (id TEXT NOT NULL, name TEXT NOT NULL, dose TEXT NOT NULL, " +
+                "times TEXT NOT NULL, active INTEGER NOT NULL, updatedAt INTEGER NOT NULL, deleted INTEGER NOT NULL, " +
+                "PRIMARY KEY(id))",
+        )
+    }
+}
+
+@Database(entities = [Event::class, Weight::class, BabyProfile::class, Medication::class], version = 3, exportSchema = true)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun events(): EventDao
     abstract fun weights(): WeightDao
     abstract fun profile(): ProfileDao
+    abstract fun meds(): MedDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
@@ -80,7 +119,7 @@ abstract class AppDatabase : RoomDatabase() {
         fun get(context: Context): AppDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "baby.db")
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build().also { instance = it }
             }
     }

@@ -30,6 +30,10 @@ object Palette {
     val dirtyMark = Color(0xFFBA7517)
     val pumpMark = Color(0xFF7F77DD)
     val bathMark = Color(0xFF1D9E75)
+    val med = Color(0xFFFBEAF0)
+    val medMark = Color(0xFFD4537E)
+    val checkin = Color(0xFFFAEEDA)
+    val checkinMark = Color(0xFFBA7517)
 
     // Night mode: low brightness, warm amber accent.
     val nightBg = Color(0xFF121418)
@@ -43,6 +47,8 @@ object Palette {
         EventType.DIAPER -> diaper
         EventType.PUMP -> pump
         EventType.BATH -> bath
+        EventType.MED -> med
+        EventType.CHECKIN -> checkin
     }
 
     fun mark(e: Event) = when (e.type) {
@@ -50,6 +56,8 @@ object Palette {
         EventType.DIAPER -> if (e.dirty) dirtyMark else wetMark
         EventType.PUMP -> pumpMark
         EventType.BATH -> bathMark
+        EventType.MED -> medMark
+        EventType.CHECKIN -> checkinMark
     }
 
     fun mark(type: EventType) = when (type) {
@@ -57,6 +65,8 @@ object Palette {
         EventType.DIAPER -> wetMark
         EventType.PUMP -> pumpMark
         EventType.BATH -> bathMark
+        EventType.MED -> medMark
+        EventType.CHECKIN -> checkinMark
     }
 }
 

@@ -4,6 +4,7 @@ import com.shirhen.babytracker.data.BabyProfile
 import com.shirhen.babytracker.data.Event
 import com.shirhen.babytracker.data.EventType
 import com.shirhen.babytracker.data.FeedKind
+import com.shirhen.babytracker.data.Medication
 import com.shirhen.babytracker.data.Weight
 
 // Firestore returns whole numbers as Long and may omit fields written by older versions,
@@ -22,6 +23,16 @@ fun Event.toMap(): Map<String, Any?> = mapOf(
     "rightMin" to rightMin,
     "breastTotalMin" to breastTotalMin,
     "lastSide" to lastSide,
+    "breastSides" to breastSides,
+    "medId" to medId,
+    "medName" to medName,
+    "checkScope" to checkScope,
+    "cryLevel" to cryLevel,
+    "alertLevel" to alertLevel,
+    "gasLevel" to gasLevel,
+    "tummyMin" to tummyMin,
+    "symptoms" to symptoms,
+    "tempC" to tempC,
     "formulaMl" to formulaMl,
     "expressedMl" to expressedMl,
     "wet" to wet,
@@ -46,6 +57,16 @@ fun eventFromMap(id: String, m: Map<String, Any?>): Event? {
         rightMin = m.int("rightMin"),
         breastTotalMin = m.int("breastTotalMin"),
         lastSide = m.str("lastSide"),
+        breastSides = m.str("breastSides"),
+        medId = m.str("medId"),
+        medName = m.str("medName"),
+        checkScope = m.str("checkScope"),
+        cryLevel = (m["cryLevel"] as? Number)?.toInt(),
+        alertLevel = (m["alertLevel"] as? Number)?.toInt(),
+        gasLevel = (m["gasLevel"] as? Number)?.toInt(),
+        tummyMin = (m["tummyMin"] as? Number)?.toInt(),
+        symptoms = m.str("symptoms"),
+        tempC = (m["tempC"] as? Number)?.toDouble(),
         formulaMl = m.int("formulaMl"),
         expressedMl = m.int("expressedMl"),
         wet = m.bool("wet"),
@@ -92,4 +113,23 @@ fun profileFromMap(m: Map<String, Any?>) = BabyProfile(
     gestDays = m.int("gestDays"),
     birthWeightG = m.int("birthWeightG"),
     updatedAt = m.long("updatedAt"),
+)
+
+fun Medication.toMap(): Map<String, Any?> = mapOf(
+    "name" to name,
+    "dose" to dose,
+    "times" to times,
+    "active" to active,
+    "updatedAt" to updatedAt,
+    "deleted" to deleted,
+)
+
+fun medFromMap(id: String, m: Map<String, Any?>) = Medication(
+    id = id,
+    name = m.str("name") ?: "",
+    dose = m.str("dose") ?: "",
+    times = m.str("times") ?: "",
+    active = m["active"] as? Boolean ?: true,
+    updatedAt = m.long("updatedAt"),
+    deleted = m.bool("deleted"),
 )

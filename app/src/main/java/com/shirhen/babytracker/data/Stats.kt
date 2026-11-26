@@ -15,6 +15,7 @@ data class Summary(
     val baths: Int = 0,
     val pumps: Int = 0,
     val pumpedMl: Int = 0,
+    val meds: Int = 0,
 )
 
 fun summarize(events: List<Event>): Summary {
@@ -31,6 +32,8 @@ fun summarize(events: List<Event>): Summary {
             EventType.DIAPER -> s.copy(wet = s.wet + if (e.wet) 1 else 0, dirty = s.dirty + if (e.dirty) 1 else 0)
             EventType.BATH -> s.copy(baths = s.baths + 1)
             EventType.PUMP -> s.copy(pumps = s.pumps + 1, pumpedMl = s.pumpedMl + e.pumpedMl)
+            EventType.MED -> s.copy(meds = s.meds + 1)
+            EventType.CHECKIN -> s
         }
     }
     return s

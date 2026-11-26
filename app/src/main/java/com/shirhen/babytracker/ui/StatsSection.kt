@@ -1,5 +1,7 @@
 package com.shirhen.babytracker.ui
 
+import com.shirhen.babytracker.data.toLocalDate
+import com.shirhen.babytracker.data.symptomList
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -135,10 +137,41 @@ fun StatsSection(events: List<Event>, now: Long) {
             }
         }
 
+        val periodEvents = events.filter { it.time >= now - days * 86_400_000L }
+        val meds = periodEvents.filter { it.type == EventType.MED }
+        if (meds.isNotEmpty()) {
+            StatCard("💊 תרופות", Palette.med) {
+                meds.groupBy { it.medName ?: "תרופה" }.forEach { (name, list) ->
+                    Text("$name: ${list.size} פעמים · אחרונה ${Fmt.ago(list.maxOf { it.time }, now)}", style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        }
+        val checks = periodEvents.filter { it.type == EventType.CHECKIN }
+        if (checks.isNotEmpty()) {
+            StatCard("📝 סיכומים", Palette.checkin) {
+                fun avg(values: List<Int>) = if (values.isEmpty()) null else values.average()
+                fun level(v: Double?, labels: List<String>) =
+                    v?.let { "${labels[(it.roundToInt() - 1).coerceIn(0, labels.size - 1)]} (${"%.1f".format(it)})" } ?: "—"
+                Tiles(
+                    "בכי בממוצע" to level(avg(checks.mapNotNull { it.cryLevel }), Fmt.cryLabels),
+                    "ערנות בממוצע" to level(avg(checks.mapNotNull { it.alertLevel }), Fmt.alertLabels),
+                    "גזים בממוצע" to level(avg(checks.mapNotNull { it.gasLevel }), Fmt.gasLabels),
+                    "ימים עם זמן בטן" to checks.filter { (it.tummyMin ?: 0) > 0 }.map { Fmt.date(it.time.toLocalDate()) }.distinct().size.toString(),
+                )
+                val symptomDays = checks.flatMap { c -> c.symptomList.map { it to c.time.toLocalDate() } }
+                    .distinct().groupBy({ it.first }, { it.second })
+                if (symptomDays.isNotEmpty()) {
+                    Muted("בריאות: " + symptomDays.entries.sortedByDescending { it.value.size }
+                        .joinToString(" · ") { (s, d) -> "${s.label} ${d.size} ימים" })
+                }
+                Muted("מבוסס על ${checks.size} סיכומים בתקופה.")
+            }
+        }
+
         StatCard("🕐 לפי שעות ביממה", Palette.feed) {
             Muted("כמה פעמים כל דבר קרה בכל שעה בתקופה שנבחרה. צבע כהה = יותר פעמים.")
             HourAxis()
-            listOf(EventType.FEED, EventType.DIAPER, EventType.PUMP, EventType.BATH).forEach { t ->
+            listOf(EventType.FEED, EventType.DIAPER, EventType.PUMP, EventType.MED, EventType.BATH).forEach { t ->
                 val counts = s.byHour.getValue(t)
                 if (counts.sum() > 0) HourRow(t, counts)
             }

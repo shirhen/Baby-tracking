@@ -11,6 +11,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.shirhen.babytracker.data.Event
 import com.shirhen.babytracker.data.EventType
+import com.shirhen.babytracker.data.Medication
 import com.shirhen.babytracker.data.Repo
 import com.shirhen.babytracker.data.lastBreastSide
 import com.shirhen.babytracker.data.nextSideOf
@@ -26,7 +27,7 @@ class QuickEntryActivity : ComponentActivity() {
         const val EXTRA_TYPE = "type"
     }
 
-    private data class Ctx(val history: List<Event>, val hint: String?)
+    private data class Ctx(val history: List<Event>, val hint: String?, val meds: List<Medication>)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -46,10 +47,27 @@ class QuickEntryActivity : ComponentActivity() {
                             Repo.db.weights().latest()?.grams,
                             history.count { it.type == EventType.FEED && it.time >= now - DAY_MS },
                         )
-                        Ctx(history, guide?.perFeedMinMl?.let { "יעד משוער לארוחה: $it–${guide.perFeedMaxMl} מ״ל" })
+                        Ctx(history, guide?.perFeedMinMl?.let { "יעד משוער לארוחה: $it–${guide.perFeedMaxMl} מ״ל" }, Repo.db.meds().active())
                     }
                 }
-                ctx?.let { c ->
+                ctx?.takeIf { type == EventType.MED }?.let { c ->
+                    MedGiveDialog(
+                        meds = c.meds,
+                        events = c.history,
+                        preselect = null,
+                        onDismiss = { finish() },
+                        onSave = { list ->
+                            Repo.scope.launch { list.forEach { Repo.save(it) } }
+                            finish()
+                        },
+                        // Adding a medication is done in the app.
+                        onAddMed = {
+                            startActivity(Intent(this@QuickEntryActivity, MainActivity::class.java))
+                            finish()
+                        },
+                    )
+                }
+                ctx?.takeIf { type != EventType.MED }?.let { c ->
                     EventEditorDialog(
                         initial = newEvent(type, c.history),
                         isNew = true,
