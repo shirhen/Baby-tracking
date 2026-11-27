@@ -1,5 +1,7 @@
 package com.shirhen.babytracker.ui
 
+import com.shirhen.babytracker.R
+
 import com.shirhen.babytracker.data.toLocalDate
 import com.shirhen.babytracker.data.symptomList
 import androidx.compose.foundation.background
@@ -21,6 +23,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -80,18 +83,18 @@ fun StatsSection(events: List<Event>, now: Long) {
             return@Column
         }
 
-        StatCard("🍼 האכלות", Palette.feed) {
+        StatCard(R.drawable.ic_feed, "האכלות", Palette.feedInk) {
             Tiles(
                 "האכלות $perLabel" to s.feedsPerDay.fmt1(),
                 "מרווח ממוצע" to minutes(s.avgGapMin),
                 "המרווח הארוך ביותר" to minutes(s.longestGapMin),
-                "בלילה (22–06) $perLabel" to s.nightFeedsPerNight.fmt1(),
+                "בלילה (22\u200E–\u200E06) $perLabel" to s.nightFeedsPerNight.fmt1(),
             )
             if (s.feeds > 0) KindBar(s)
         }
 
         if (s.bottleFeeds > 0) {
-            StatCard("🍼 בקבוק", Palette.feed) {
+            StatCard(R.drawable.ic_feed, "בקבוק", Palette.feedInk) {
                 Tiles(
                     "מ״ל $perLabel" to s.bottleMlPerDay.roundToInt().toString(),
                     "ממוצע לבקבוק" to "${s.avgMlPerBottle ?: "—"} מ״ל",
@@ -103,7 +106,7 @@ fun StatsSection(events: List<Event>, now: Long) {
         }
 
         if (s.breastFeeds > 0) {
-            StatCard("🤱 הנקה", Palette.feed) {
+            StatCard(R.drawable.ic_breast, "הנקה", Palette.feedInk) {
                 Tiles(
                     "משך ממוצע להנקה" to minutes(s.avgBreastMin),
                     "דקות הנקה $perLabel" to s.breastMinPerDay.roundToInt().toString(),
@@ -116,7 +119,7 @@ fun StatsSection(events: List<Event>, now: Long) {
             }
         }
 
-        StatCard("🧷 חיתולים", Palette.diaper) {
+        StatCard(R.drawable.ic_diaper, "חיתולים", Palette.diaperInk) {
             Tiles(
                 "חיתולים $perLabel" to s.diapersPerDay.fmt1(),
                 "רטובים $perLabel" to s.wetPerDay.fmt1(),
@@ -126,7 +129,7 @@ fun StatsSection(events: List<Event>, now: Long) {
         }
 
         if (s.pumps > 0) {
-            StatCard("🫧 שאיבה", Palette.pump) {
+            StatCard(R.drawable.ic_pump, "שאיבה", Palette.pumpInk) {
                 Tiles(
                     "שאיבות $perLabel" to s.pumpsPerDay.fmt1(),
                     "מ״ל $perLabel" to s.pumpMlPerDay.roundToInt().toString(),
@@ -140,7 +143,7 @@ fun StatsSection(events: List<Event>, now: Long) {
         val periodEvents = events.filter { it.time >= now - days * 86_400_000L }
         val meds = periodEvents.filter { it.type == EventType.MED }
         if (meds.isNotEmpty()) {
-            StatCard("💊 תרופות", Palette.med) {
+            StatCard(R.drawable.ic_med, "תרופות", Palette.medInk) {
                 meds.groupBy { it.medName ?: "תרופה" }.forEach { (name, list) ->
                     Text("$name: ${list.size} פעמים · אחרונה ${Fmt.ago(list.maxOf { it.time }, now)}", style = MaterialTheme.typography.bodyMedium)
                 }
@@ -148,7 +151,7 @@ fun StatsSection(events: List<Event>, now: Long) {
         }
         val checks = periodEvents.filter { it.type == EventType.CHECKIN }
         if (checks.isNotEmpty()) {
-            StatCard("📝 סיכומים", Palette.checkin) {
+            StatCard(R.drawable.ic_checkin, "סיכומים", Palette.checkinInk) {
                 fun avg(values: List<Int>) = if (values.isEmpty()) null else values.average()
                 fun level(v: Double?, labels: List<String>) =
                     v?.let { "${labels[(it.roundToInt() - 1).coerceIn(0, labels.size - 1)]} (${"%.1f".format(it)})" } ?: "—"
@@ -168,7 +171,7 @@ fun StatsSection(events: List<Event>, now: Long) {
             }
         }
 
-        StatCard("🕐 לפי שעות ביממה", Palette.feed) {
+        StatCard(R.drawable.ic_nav_home, "לפי שעות ביממה", Palette.primary) {
             Muted("כמה פעמים כל דבר קרה בכל שעה בתקופה שנבחרה. צבע כהה = יותר פעמים.")
             HourAxis()
             listOf(EventType.FEED, EventType.DIAPER, EventType.PUMP, EventType.MED, EventType.BATH).forEach { t ->
@@ -177,7 +180,7 @@ fun StatsSection(events: List<Event>, now: Long) {
             }
         }
 
-        StatCard("🛁 מקלחות", Palette.bath) {
+        StatCard(R.drawable.ic_bath, "מקלחות", Palette.bathInk) {
             Tiles(
                 "בתקופה" to s.baths.toString(),
                 "האחרונה" to (s.lastBath?.let { Fmt.ago(it, now) } ?: "—"),
@@ -187,10 +190,13 @@ fun StatsSection(events: List<Event>, now: Long) {
 }
 
 @Composable
-private fun StatCard(title: String, accent: Color, content: @Composable () -> Unit) {
+private fun StatCard(@androidx.annotation.DrawableRes icon: Int, title: String, accent: Color, content: @Composable () -> Unit) {
     Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                IconBadge(icon, accent.copy(alpha = 0.12f), accent, size = 34.dp, iconSize = 19.dp)
+                Text(title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+            }
             content()
         }
     }
@@ -251,7 +257,7 @@ private fun KindBar(s: Stats) {
     }
 }
 
-private fun hourRange(h: Int) = "%02d–%02d".format(h, (h + 1) % 24)
+private fun hourRange(h: Int) = "%02d\u200E–\u200E%02d".format(h, (h + 1) % 24)
 
 /** Up to three busiest hours, e.g. "06–07 (5), 21–22 (4)". */
 private fun peakHours(counts: IntArray): String =
@@ -294,7 +300,7 @@ private fun HourRow(type: EventType, counts: IntArray) {
     val base = Palette.mark(type)
     val empty = MaterialTheme.colorScheme.surfaceVariant
     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        Text("${Fmt.emoji(type)} ${Fmt.title(type)}", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium)
+        IconTitle(AppIcons.of(type), Fmt.title(type), style = MaterialTheme.typography.labelLarge, iconSize = 16.dp, tint = Palette.inkOf(type))
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
             Row(Modifier.fillMaxWidth().height(22.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                 counts.forEach { n ->

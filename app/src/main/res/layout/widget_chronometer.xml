@@ -9,6 +9,6 @@
     android:textDirection="ltr"
     android:singleLine="true"
     android:includeFontPadding="false"
-    android:textColor="#3B2F2A"
+    android:textColor="#1F2A22"
     android:textSize="22sp"
     android:textStyle="bold" />

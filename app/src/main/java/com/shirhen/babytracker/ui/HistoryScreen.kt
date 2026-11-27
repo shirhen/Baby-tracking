@@ -1,5 +1,8 @@
 package com.shirhen.babytracker.ui
 
+import com.shirhen.babytracker.R
+import androidx.compose.runtime.collectAsState
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
@@ -55,6 +58,9 @@ fun HistoryScreen(
     modifier: Modifier = Modifier,
 ) {
     var view by rememberSaveable { mutableIntStateOf(0) }
+    val hidden by com.shirhen.babytracker.data.Repo.prefs.hiddenTrackers.collectAsState()
+    val showWeight = com.shirhen.babytracker.data.Tracker.WEIGHT !in hidden
+    if (!showWeight && view == 2) view = 0
     val byDay = remember(events) { events.groupBy { it.time.toLocalDate() } }
     val days = remember(byDay) { byDay.keys.sortedDescending() }
     val expanded = remember { mutableStateListOf<LocalDate>() }
@@ -69,9 +75,9 @@ fun HistoryScreen(
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
-                FilterChip(selected = view == 0, onClick = { view = 0 }, label = { Text("📊 סטטיסטיקה") })
-                FilterChip(selected = view == 1, onClick = { view = 1 }, label = { Text("📅 לפי ימים") })
-                FilterChip(selected = view == 2, onClick = { view = 2 }, label = { Text("⚖️ משקל") })
+                FilterChip(selected = view == 0, onClick = { view = 0 }, label = { Text("סטטיסטיקה") }, leadingIcon = { AppIcon(R.drawable.ic_nav_stats, size = 18.dp) })
+                FilterChip(selected = view == 1, onClick = { view = 1 }, label = { Text("לפי ימים") }, leadingIcon = { AppIcon(R.drawable.ic_nav_journal, size = 18.dp) })
+                if (showWeight) FilterChip(selected = view == 2, onClick = { view = 2 }, label = { Text("משקל") }, leadingIcon = { AppIcon(R.drawable.ic_weight, size = 18.dp) })
             }
         }
         if (view == 0) {
@@ -99,13 +105,13 @@ fun HistoryScreen(
                         s.formulaMl.takeIf { it > 0 }?.let { "תמ״ל $it" },
                         s.expressedMl.takeIf { it > 0 }?.let { "שאוב $it" },
                     ).joinToString(" · ")
-                    Text("🍼 ${s.feeds} האכלות · ${s.bottleMl} מ״ל" + (if (bottleParts.isNotEmpty()) " ($bottleParts)" else "") +
+                    Text("האכלות: ${s.feeds} · ${s.bottleMl} מ״ל" + (if (bottleParts.isNotEmpty()) " ($bottleParts)" else "") +
                         (if (s.breastMin > 0) " · ${s.breastMin} ד׳ הנקה" else ""))
-                    Text("🧷 ${s.wet} רטובים · ${s.dirty} מלוכלכים")
+                    Text("חיתולים: ${s.wet} רטובים · ${s.dirty} מלוכלכים")
                     if (s.baths > 0 || s.pumps > 0) {
                         Text(listOfNotNull(
-                            s.baths.takeIf { it > 0 }?.let { "🛁 $it" },
-                            s.pumps.takeIf { it > 0 }?.let { "🫧 $it שאיבות · ${s.pumpedMl} מ״ל" },
+                            s.baths.takeIf { it > 0 }?.let { "מקלחות: $it" },
+                            s.pumps.takeIf { it > 0 }?.let { "$it שאיבות · ${s.pumpedMl} מ״ל" },
                         ).joinToString(" · "))
                     }
                     Muted(if (isOpen) "הסתרת פירוט ▲" else "פירוט ▼")

@@ -114,7 +114,7 @@ fun pickDay(context: Context, current: LocalDate?, onPicked: (LocalDate) -> Unit
 
 /** Large rounded tile used for the quick-log buttons. */
 @Composable
-fun QuickTile(emoji: String, label: String, color: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
+fun QuickTile(@androidx.annotation.DrawableRes icon: Int, label: String, color: Color, ink: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(18.dp))
@@ -123,9 +123,9 @@ fun QuickTile(emoji: String, label: String, color: Color, modifier: Modifier = M
             .padding(vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(emoji, fontSize = 26.sp)
-        Spacer(Modifier.size(2.dp))
-        Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium, color = Palette.ink)
+        AppIcon(icon, size = 30.dp, tint = ink)
+        Spacer(Modifier.size(4.dp))
+        Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium, color = ink)
     }
 }
 

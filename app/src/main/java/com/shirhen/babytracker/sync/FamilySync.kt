@@ -10,7 +10,10 @@ import com.shirhen.babytracker.BuildConfig
 import com.shirhen.babytracker.data.BabyProfile
 import com.shirhen.babytracker.data.Event
 import com.shirhen.babytracker.data.Medication
+import com.shirhen.babytracker.data.Member
 import com.shirhen.babytracker.data.Repo
+import com.shirhen.babytracker.data.Role
+import com.google.firebase.firestore.SetOptions
 import com.shirhen.babytracker.data.Weight
 import com.shirhen.babytracker.widget.WidgetRefresher
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,6 +28,7 @@ import java.security.SecureRandom
  *   families/{code}/events/{id}
  *   families/{code}/weights/{id}
  *   families/{code}/meta/profile
+ *   families/{code}/members/{uid}  -> { name, role }   (roles are enforced in the app)
  * The family code is a long random string; only signed-in members can read the data (see firestore.rules).
  */
 object FamilySync {
@@ -37,6 +41,67 @@ object FamilySync {
     val status: StateFlow<String> = _status
 
     private val listeners = mutableListOf<ListenerRegistration>()
+
+    private val _members = MutableStateFlow<List<Member>>(emptyList())
+    /** Everyone in the family, parents first. Empty when not connected. */
+    val members: StateFlow<List<Member>> = _members
+
+    private val _myRole = MutableStateFlow(Role.PARENT)
+    /** This phone's role. Without a family the phone owner can do everything. */
+    val myRole: StateFlow<Role> = _myRole
+
+    /** Called once at startup so the role is right before the first sync arrives. */
+    fun initRole() {
+        _myRole.value = if (Repo.prefs.familyId.value == null) Role.PARENT else Repo.prefs.cachedRole
+    }
+
+    val myUid: String?
+        get() = if (available) FirebaseAuth.getInstance().currentUser?.uid else null
+
+    private fun memberRef(code: String, uid: String) = family(code).collection("members").document(uid)
+
+    private fun memberMap(name: String, role: Role, joinedAt: Long) = mapOf(
+        "name" to name,
+        "role" to role.name,
+        "joinedAt" to joinedAt,
+        "updatedAt" to System.currentTimeMillis(),
+    )
+
+    private fun memberFromMap(uid: String, m: Map<String, Any?>) = Member(
+        uid = uid,
+        name = (m["name"] as? String).orEmpty(),
+        role = (m["role"] as? String)?.let { runCatching { Role.valueOf(it) }.getOrNull() } ?: Role.PARENT,
+        joinedAt = (m["joinedAt"] as? Number)?.toLong() ?: 0L,
+        updatedAt = (m["updatedAt"] as? Number)?.toLong() ?: 0L,
+    )
+
+    private fun setMyRole(role: Role) {
+        _myRole.value = role
+        Repo.prefs.cachedRole = role
+    }
+
+    /** Parents only. Refuses to leave the family without any parent. */
+    suspend fun setRole(uid: String, role: Role) {
+        require(_myRole.value == Role.PARENT) { "רק הורה יכול לשנות תפקידים" }
+        val code = Repo.prefs.familyId.value ?: return
+        val parents = _members.value.filter { it.role == Role.PARENT }
+        require(!(role != Role.PARENT && parents.size <= 1 && parents.any { it.uid == uid })) {
+            "צריך להישאר לפחות הורה אחד"
+        }
+        memberRef(code, uid).set(mapOf("role" to role.name, "updatedAt" to System.currentTimeMillis()), SetOptions.merge()).await()
+    }
+
+    /** Keeps the name next to this phone's entry in the family list up to date. */
+    fun updateMyName(name: String) {
+        if (!available) return
+        val code = Repo.prefs.familyId.value ?: return
+        val uid = myUid ?: return
+        try {
+            memberRef(code, uid).set(mapOf("name" to name.trim(), "updatedAt" to System.currentTimeMillis()), SetOptions.merge())
+        } catch (e: Exception) {
+            Log.w(TAG, "name update failed", e)
+        }
+    }
 
     private fun db() = FirebaseFirestore.getInstance()
     private fun family(code: String) = db().collection("families").document(code)
@@ -51,6 +116,9 @@ object FamilySync {
         val uid = uid()
         val code = randomCode()
         family(code).set(mapOf("members" to listOf(uid), "createdAt" to System.currentTimeMillis())).await()
+        // Whoever creates the family is a parent.
+        memberRef(code, uid).set(memberMap(Repo.prefs.userName.value, Role.PARENT, System.currentTimeMillis())).await()
+        setMyRole(Role.PARENT)
         Repo.prefs.setFamilyId(code)
         pushAll(code)
         start()
@@ -66,6 +134,12 @@ object FamilySync {
         require(snap.exists()) { "לא נמצאה משפחה עם הקוד הזה" }
         val members = snap.get("members") as? List<*> ?: emptyList<Any>()
         if (uid !in members) ref.update("members", FieldValue.arrayUnion(uid)).await()
+        // New members start as recorders; a parent can make them a parent from the family screen.
+        val mine = memberRef(code, uid).get().await()
+        if (!mine.exists()) {
+            memberRef(code, uid).set(memberMap(Repo.prefs.userName.value, Role.RECORDER, System.currentTimeMillis())).await()
+            setMyRole(Role.RECORDER)
+        }
         Repo.prefs.setFamilyId(code)
         pushAll(code)
         start()
@@ -74,6 +148,8 @@ object FamilySync {
     fun leave() {
         stop()
         Repo.prefs.setFamilyId(null)
+        _members.value = emptyList()
+        setMyRole(Role.PARENT)
         _status.value = ""
     }
 
@@ -84,8 +160,23 @@ object FamilySync {
         stop()
         Repo.scope.launch {
             try {
-                uid()
+                val me = uid()
                 val fam = family(code)
+                // Phones that joined before roles existed were parents: record that once.
+                runCatching {
+                    val mine = memberRef(code, me).get().await()
+                    if (!mine.exists()) {
+                        memberRef(code, me).set(memberMap(Repo.prefs.userName.value, Role.PARENT, System.currentTimeMillis())).await()
+                    }
+                }
+                listeners += fam.collection("members").addSnapshotListener { snap, _ ->
+                    val list = snap?.documents.orEmpty()
+                        .map { memberFromMap(it.id, it.data.orEmpty()) }
+                        .sortedWith(compareBy<Member> { it.role.ordinal }.thenBy { it.joinedAt })
+                    if (list.isEmpty()) return@addSnapshotListener
+                    _members.value = list
+                    list.firstOrNull { it.uid == me }?.let { setMyRole(it.role) }
+                }
                 listeners += fam.collection("events").addSnapshotListener { snap, err ->
                     if (err != null) { _status.value = "שגיאת סנכרון: ${err.message}"; return@addSnapshotListener }
                     val changes = snap?.documentChanges.orEmpty()

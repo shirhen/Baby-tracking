@@ -56,12 +56,12 @@ fun GuideCard(guide: FeedingGuide.Result?, bottle24: Int, breast24: Int, onOpenS
                 return@Column
             }
             if (guide.perFeedMinMl != null) {
-                Text("${guide.perFeedMinMl}–${guide.perFeedMaxMl} מ״ל לארוחה", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                Text("${guide.perFeedMinMl}\u200E–\u200E${guide.perFeedMaxMl} מ״ל לארוחה", fontSize = 24.sp, fontWeight = FontWeight.Bold)
             }
             val feedsSource = if (guide.feedsFromLog) "לפי התיעוד ב-24 השעות האחרונות" else "ממוצע מקובל לגיל"
             Muted("לפי ${guide.feedsPerDay} ארוחות ביממה ($feedsSource)")
             if (guide.dailyMinMl != null && guide.dailyMaxMl != null) {
-                Text("ביממה: ${guide.dailyMinMl}–${guide.dailyMaxMl} מ״ל · ב-24 ש׳ האחרונות: $bottle24 מ״ל בבקבוק")
+                Text("ביממה: ${guide.dailyMinMl}\u200E–\u200E${guide.dailyMaxMl} מ״ל · ב-24 ש׳ האחרונות: $bottle24 מ״ל בבקבוק")
                 LinearProgressIndicator(
                     progress = { (bottle24.toFloat() / guide.dailyMinMl).coerceIn(0f, 1f) },
                     modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
@@ -91,7 +91,7 @@ fun GuideCard(guide: FeedingGuide.Result?, bottle24: Int, breast24: Int, onOpenS
 fun DiaperCard(wet24: Int, dirty24: Int, chronoDays: Int?, haveFullDay: Boolean, warningOn: Boolean) {
     Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("🧷 חיתולים ב-24 שעות: $wet24 רטובים · $dirty24 מלוכלכים", fontWeight = FontWeight.Medium)
+            IconTitle(com.shirhen.babytracker.R.drawable.ic_diaper, "חיתולים ב-24 שעות: $wet24 רטובים · $dirty24 מלוכלכים", style = MaterialTheme.typography.bodyLarge, tint = Palette.diaperInk)
             val low = warningOn && chronoDays != null && chronoDays >= 5 && haveFullDay && wet24 < 6
             if (low) {
                 Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Palette.warn).padding(10.dp)) {
@@ -122,10 +122,7 @@ fun EventRow(e: Event, onClick: () -> Unit) {
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        val color = Palette.light(e.type)
-        Box(Modifier.size(40.dp).clip(CircleShape).background(color), contentAlignment = Alignment.Center) {
-            Text(Fmt.emoji(e.type), fontSize = 20.sp)
-        }
+        TypeBadge(e.type)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text("${Fmt.time(e.time)} · ${Fmt.title(e.type)}", fontWeight = FontWeight.Medium)

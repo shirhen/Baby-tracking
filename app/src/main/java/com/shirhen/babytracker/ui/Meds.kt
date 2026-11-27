@@ -100,7 +100,7 @@ fun MedGiveDialog(
         Surface(shape = RoundedCornerShape(24.dp), modifier = Modifier.systemBarsPadding().fillMaxWidth(0.94f).padding(vertical = 12.dp)) {
             Column(Modifier.padding(20.dp)) {
             Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("💊 מתן תרופה", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                TypeTitle(EventType.MED, "מתן תרופה")
                 TimeRow(time) { time = it }
                 HorizontalDivider()
                 if (active.isEmpty()) {
@@ -179,7 +179,7 @@ fun MedEditDialog(
         Surface(shape = RoundedCornerShape(24.dp), modifier = Modifier.systemBarsPadding().fillMaxWidth(0.94f).padding(vertical = 12.dp)) {
             Column(Modifier.padding(20.dp)) {
             Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(if (initial == null) "💊 תרופה חדשה" else "💊 עריכת תרופה", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                TypeTitle(EventType.MED, if (initial == null) "תרופה חדשה" else "עריכת תרופה")
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("שם התרופה") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = dose, onValueChange = { dose = it }, label = { Text("מינון (לא חובה), למשל 2.5 מ״ל") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Text("שעות מתן ביום", fontWeight = FontWeight.Medium)
@@ -227,7 +227,11 @@ fun MedsCard(meds: List<Medication>, events: List<Event>, now: Long, onGive: (St
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("💊 תרופות", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        TypeBadge(EventType.MED, size = 32.dp, iconSize = 18.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text("תרופות", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                    }
                     lastAny?.let { Muted("אחרונה: ${it.medName ?: "תרופה"} · לפני ${Fmt.since(it.time, now)}") }
                     Muted("לחיצה ארוכה על תרופה = ניתנה עכשיו")
                 }
@@ -265,19 +269,23 @@ fun MedsCard(meds: List<Medication>, events: List<Event>, now: Long, onGive: (St
 
 /** Settings list of medications with add / edit. */
 @Composable
-fun MedsSettings(meds: List<Medication>, onEdit: (Medication?) -> Unit) {
+fun MedsSettings(meds: List<Medication>, onEdit: (Medication?) -> Unit, canEdit: Boolean = true) {
     if (meds.isEmpty()) Muted("אין תרופות. מוסיפים תרופה עם השעות שבהן נותנים אותה, ואז מופיעים טיימר, תזכורת וכפתור מתן.")
     meds.forEach { m ->
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth().clickable { onEdit(m) }.padding(vertical = 6.dp),
+            modifier = Modifier.fillMaxWidth().clickable(enabled = canEdit) { onEdit(m) }.padding(vertical = 6.dp),
         ) {
             Column(Modifier.weight(1f)) {
                 Text(m.name + if (m.dose.isNotBlank()) " · ${m.dose}" else "", fontWeight = FontWeight.Medium)
                 Muted(MedSchedule.formatTimes(m) + if (!m.active) " · הופסקה" else "")
             }
-            Text("עריכה", color = MaterialTheme.colorScheme.primary)
+            if (canEdit) Text("עריכה", color = MaterialTheme.colorScheme.primary)
         }
     }
-    OutlinedButton(onClick = { onEdit(null) }, modifier = Modifier.fillMaxWidth()) { Text("＋ תרופה חדשה") }
+    if (canEdit) {
+        OutlinedButton(onClick = { onEdit(null) }, modifier = Modifier.fillMaxWidth()) { Text("＋ תרופה חדשה") }
+    } else {
+        Muted("רק הורה יכול להוסיף או לשנות תרופות.")
+    }
 }

@@ -2,6 +2,13 @@
 
 package com.shirhen.babytracker.ui
 
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import com.shirhen.babytracker.R
+import com.shirhen.babytracker.data.Repo
+import com.shirhen.babytracker.data.Tracker
+
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -49,13 +56,24 @@ fun NightScreen(
     onExit: () -> Unit,
 ) {
     val lastFeed = events.firstOrNull { it.type == EventType.FEED }
+    val chosen by Repo.prefs.nightButtons.collectAsState()
+    val hidden by Repo.prefs.hiddenTrackers.collectAsState()
+    val buttons = chosen.filter { Tracker.of(it) !in hidden }.ifEmpty { listOf(EventType.FEED) }
     val lastDiaper = events.firstOrNull { it.type == EventType.DIAPER }
 
     Box(Modifier.fillMaxSize().background(Palette.nightBg).systemBarsPadding()) {
         Column(Modifier.fillMaxSize().padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("🌙 מצב לילה", color = Palette.nightMuted, fontSize = 16.sp, modifier = Modifier.weight(1f))
-                TextButton(onClick = onExit) { Text("יציאה ☀️", color = Palette.nightText, fontSize = 16.sp) }
+                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                    AppIcon(R.drawable.ic_moon, size = 20.dp, tint = Palette.nightMuted)
+                    Spacer(Modifier.width(8.dp))
+                    Text("מצב לילה", color = Palette.nightMuted, fontSize = 16.sp)
+                }
+                TextButton(onClick = onExit) {
+                    AppIcon(R.drawable.ic_sun, size = 18.dp, tint = Palette.nightText)
+                    Spacer(Modifier.width(6.dp))
+                    Text("יציאה", color = Palette.nightText, fontSize = 16.sp)
+                }
             }
 
             Column(
@@ -79,14 +97,12 @@ fun NightScreen(
                 }
             }
 
+            // The buttons chosen in settings, two per row; fewer buttons means bigger buttons.
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    NightButton(EventType.FEED, Modifier.weight(1f), onOpen, onQuickLog)
-                    NightButton(EventType.DIAPER, Modifier.weight(1f), onOpen, onQuickLog)
-                }
-                Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    NightButton(EventType.PUMP, Modifier.weight(1f), onOpen, onQuickLog)
-                    NightButton(EventType.BATH, Modifier.weight(1f), onOpen, onQuickLog)
+                buttons.chunked(2).forEach { row ->
+                    Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        row.forEach { t -> NightButton(t, Modifier.weight(1f), onOpen, onQuickLog) }
+                    }
                 }
             }
 
@@ -109,7 +125,7 @@ private fun NightButton(type: EventType, modifier: Modifier, onOpen: (EventType)
         modifier = modifier
             .fillMaxHeight()
             .clip(RoundedCornerShape(28.dp))
-            .background(Palette.nightTile)
+            .background(Palette.nightTileOf(type))
             .combinedClickable(
                 onClick = { onOpen(type) },
                 onLongClick = {
@@ -120,7 +136,8 @@ private fun NightButton(type: EventType, modifier: Modifier, onOpen: (EventType)
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Text(Fmt.emoji(type), fontSize = 44.sp)
+        AppIcon(AppIcons.of(type), size = 48.dp, tint = Palette.nightInkOf(type))
+        Spacer(Modifier.height(10.dp))
         Text(Fmt.title(type), color = Palette.nightText, fontSize = 22.sp, fontWeight = FontWeight.Medium)
     }
 }

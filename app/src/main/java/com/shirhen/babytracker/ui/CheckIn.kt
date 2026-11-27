@@ -82,7 +82,7 @@ fun CheckInDialog(
         Surface(shape = RoundedCornerShape(24.dp), modifier = Modifier.systemBarsPadding().fillMaxWidth(0.96f).padding(vertical = 12.dp)) {
             Column(Modifier.padding(18.dp)) {
             Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("📝 איך היה?", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                TypeTitle(EventType.CHECKIN, "איך היה?")
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(selected = e.checkScope != "DAY", onClick = { e = e.copy(checkScope = "RECENT") }, label = { Text("השעות האחרונות") })
                     FilterChip(selected = e.checkScope == "DAY", onClick = { e = e.copy(checkScope = "DAY") }, label = { Text("היום כולו") })
@@ -208,7 +208,10 @@ fun CheckInCard(events: List<Event>, onOpen: (Event?) -> Unit) {
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("📝 איך היה היום?", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TypeBadge(EventType.CHECKIN, size = 32.dp, iconSize = 18.dp)
+                    Text("איך היה היום?", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                }
                 TextButton(onClick = { onOpen(null) }) { Text(if (today.isEmpty()) "לסכם" else "＋ עוד") }
             }
             if (today.isEmpty()) {

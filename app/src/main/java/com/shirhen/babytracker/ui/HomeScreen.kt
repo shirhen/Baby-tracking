@@ -1,5 +1,8 @@
 package com.shirhen.babytracker.ui
 
+import com.shirhen.babytracker.R
+import com.shirhen.babytracker.data.Tracker
+
 import com.shirhen.babytracker.data.Repo
 import com.shirhen.babytracker.data.PatternAlert
 import com.shirhen.babytracker.data.Medication
@@ -73,6 +76,8 @@ fun HomeScreen(
     val patternOn by Repo.prefs.patternAlerts.collectAsState()
     val remindersOn by Repo.prefs.medReminders.collectAsState()
     val diaperWarningOn by Repo.prefs.diaperWarning.collectAsState()
+    val hidden by Repo.prefs.hiddenTrackers.collectAsState()
+    fun shown(t: Tracker) = t !in hidden
     val alerts = remember(events, meds, now / 60_000, patternOn, remindersOn) {
         (if (remindersOn) Alerts.medReminders(meds, events, now) else emptyList()) +
             (if (patternOn) Alerts.pattern(events, now) else emptyList())
@@ -99,7 +104,7 @@ fun HomeScreen(
                         Muted("גיל: ${Fmt.age(g.chronoDays)}$corrected")
                     }
                 }
-                IconButton(onClick = onNightMode) { Icon(Icons.Filled.Bedtime, contentDescription = "מצב לילה") }
+                IconButton(onClick = onNightMode) { AppIcon(R.drawable.ic_moon, description = "מצב לילה") }
             }
         }
 
@@ -121,29 +126,32 @@ fun HomeScreen(
             }
         }
 
-        item {
+        // Small "since" tiles, two per row, only for trackers shown on this phone.
+        val tiles = buildList {
+            if (shown(Tracker.DIAPER)) {
+                add(Mini(R.drawable.ic_diaper, "חיתול", Palette.diaper, Palette.diaperInk, last(EventType.DIAPER), EventType.DIAPER))
+                add(Mini(R.drawable.ic_poop, "קקי אחרון", Palette.poop, Palette.poopInk, events.firstOrNull { it.type == EventType.DIAPER && it.dirty }, EventType.DIAPER))
+            }
+            if (shown(Tracker.PUMP)) add(Mini(R.drawable.ic_pump, "שאיבה", Palette.pump, Palette.pumpInk, last(EventType.PUMP), EventType.PUMP))
+            if (shown(Tracker.BATH)) add(Mini(R.drawable.ic_bath, "מקלחת", Palette.bath, Palette.bathInk, last(EventType.BATH), EventType.BATH))
+        }
+        if (tiles.isNotEmpty()) item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    MiniSince("🧷 חיתול", Palette.diaper, last(EventType.DIAPER), now, Modifier.weight(1f)) { onNew(EventType.DIAPER) }
-                    MiniSince(
-                        "💩 קקי אחרון", Palette.feed,
-                        events.firstOrNull { it.type == EventType.DIAPER && it.dirty }, now, Modifier.weight(1f),
-                    ) { onNew(EventType.DIAPER) }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    MiniSince("🫧 שאיבה", Palette.pump, last(EventType.PUMP), now, Modifier.weight(1f)) { onNew(EventType.PUMP) }
-                    MiniSince("🛁 מקלחת", Palette.bath, last(EventType.BATH), now, Modifier.weight(1f)) { onNew(EventType.BATH) }
+                tiles.chunked(2).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        row.forEach { t -> MiniSince(t, now, Modifier.weight(1f)) { onNew(t.type) } }
+                    }
                 }
             }
         }
 
-        item { MedsCard(meds, events, now, onGive = onGiveMed, onQuick = onQuickMed) }
+        if (shown(Tracker.MED)) item { MedsCard(meds, events, now, onGive = onGiveMed, onQuick = onQuickMed) }
 
-        item { CheckInCard(events, onOpen = onCheckIn) }
+        if (shown(Tracker.CHECKIN)) item { CheckInCard(events, onOpen = onCheckIn) }
 
         item { GuideCard(guide, s24.bottleMl, s24.breastMin, onOpenSettings) }
 
-        item {
+        if (shown(Tracker.DIAPER)) item {
             val haveFullDay = events.any { it.time < now - DAY_MS }
             DiaperCard(s24.wet, s24.dirty, guide?.chronoDays, haveFullDay, diaperWarningOn)
         }
@@ -162,15 +170,18 @@ fun HomeScreen(
     }
 }
 
+private class Mini(val icon: Int, val label: String, val bg: Color, val ink: Color, val last: Event?, val type: EventType)
+
 @Composable
-private fun MiniSince(label: String, color: Color, last: Event?, now: Long, modifier: Modifier, onClick: () -> Unit) {
+private fun MiniSince(t: Mini, now: Long, modifier: Modifier, onClick: () -> Unit) {
+    val last = t.last
     Card(
         modifier = modifier.clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = color, contentColor = Palette.ink),
-        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = t.bg, contentColor = Palette.ink),
+        shape = RoundedCornerShape(18.dp),
     ) {
-        Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
-            Text(label, style = MaterialTheme.typography.labelMedium)
+        Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp)) {
+            IconTitle(t.icon, t.label, style = MaterialTheme.typography.labelLarge, tint = t.ink, iconSize = 18.dp, bold = false)
             Text(if (last == null) "—" else Fmt.since(last.time, now), fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Text(last?.let { Fmt.time(it.time) } ?: " ", style = MaterialTheme.typography.labelSmall)
         }
@@ -181,10 +192,13 @@ private fun MiniSince(label: String, color: Color, last: Event?, now: Long, modi
 @Composable
 fun ActionFab(onPick: (EventType) -> Unit) {
     var open by remember { mutableStateOf(false) }
+    val hidden by Repo.prefs.hiddenTrackers.collectAsState()
     Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         AnimatedVisibility(visible = open) {
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                listOf(EventType.CHECKIN, EventType.MED, EventType.BATH, EventType.PUMP, EventType.DIAPER, EventType.FEED).forEach { t ->
+                listOf(EventType.CHECKIN, EventType.MED, EventType.BATH, EventType.PUMP, EventType.DIAPER, EventType.FEED)
+                    .filter { Tracker.of(it) !in hidden }
+                    .forEach { t ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Surface(shape = RoundedCornerShape(10.dp), tonalElevation = 2.dp, shadowElevation = 2.dp) {
                             Text(Fmt.title(t), modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp))
@@ -193,8 +207,8 @@ fun ActionFab(onPick: (EventType) -> Unit) {
                         SmallFloatingActionButton(
                             onClick = { open = false; onPick(t) },
                             containerColor = Palette.light(t),
-                            contentColor = Palette.ink,
-                        ) { Text(Fmt.emoji(t), fontSize = 18.sp) }
+                            contentColor = Palette.inkOf(t),
+                        ) { AppIcon(AppIcons.of(t), description = Fmt.title(t)) }
                     }
                 }
             }

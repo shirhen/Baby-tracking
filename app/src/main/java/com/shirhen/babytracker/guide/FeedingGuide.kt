@@ -9,11 +9,11 @@ import kotlin.math.roundToInt
  *
  * Sources:
  *  - AAP / HealthyChildren.org "Amount and Schedule of Baby Formula Feedings":
- *      first week no more than ~30–60 ml per feed; about 75 ml per 453 g body weight per day
+ *      first week no more than ~30\u200E–\u200E60 ml per feed; about 75 ml per 453 g body weight per day
  *      (= ~165 ml/kg/day); usually no more than ~960 ml per 24 h.
  *  - UK practice (Mother&Baby / midwife guidance): 150 ml/kg/day as a low estimate.
- *  - Newborn stomach capacity by day (Blueberry Pediatrics): day 1 ~5–7 ml, day 3 ~22–30 ml, day 7 ~45–60 ml.
- *  - Preterm (<37 weeks): hospital protocols (e.g. GOSH NHS) use 150–180 ml/kg/day; corrected age is
+ *  - Newborn stomach capacity by day (Blueberry Pediatrics): day 1 ~5\u200E–\u200E7 ml, day 3 ~22\u200E–\u200E30 ml, day 7 ~45\u200E–\u200E60 ml.
+ *  - Preterm (<37 weeks): hospital protocols (e.g. GOSH NHS) use 150\u200E–\u200E180 ml/kg/day; corrected age is
  *    used for age-based milestones (CHOP discharge algorithm). Post-discharge plans are individual.
  */
 object FeedingGuide {
@@ -75,7 +75,7 @@ object FeedingGuide {
                 dailyMinMl = null, dailyMaxMl = null,
                 perFeedMinMl = min, perFeedMaxMl = max,
                 feedsPerDay = feeds, feedsFromLog = feedsFromLog,
-                basis = "שבוע ראשון: לפי נפח הקיבה ביום ${chrono + 1} לחיים. ה-AAP: לא יותר מ-30–60 מ״ל לארוחה בשבוע הראשון.",
+                basis = "שבוע ראשון: לפי נפח הקיבה ביום ${chrono + 1} לחיים. ה-AAP: לא יותר מ-30\u200E–\u200E60 מ״ל לארוחה בשבוע הראשון.",
                 warning = pretermWarning,
             )
         }
@@ -104,9 +104,9 @@ object FeedingGuide {
             perFeedMaxMl = roundTo5(dailyMax.toDouble() / feeds),
             feedsPerDay = feeds, feedsFromLog = feedsFromLog,
             basis = if (usePretermRange) {
-                "משקל ${"%.2f".format(kg)} ק״ג × $ML_PER_KG_LOW–$ML_PER_KG_PRETERM_HIGH מ״ל לק״ג ליום (טווח מקובל לפגים)."
+                "משקל ${"%.2f".format(kg)} ק״ג × $ML_PER_KG_LOW\u200E–\u200E$ML_PER_KG_PRETERM_HIGH מ״ל לק״ג ליום (טווח מקובל לפגים)."
             } else {
-                "משקל ${"%.2f".format(kg)} ק״ג × $ML_PER_KG_LOW–$ML_PER_KG_HIGH מ״ל לק״ג ליום (AAP: כ-75 מ״ל לכל 453 גרם). עד $DAILY_CAP_ML מ״ל ביממה."
+                "משקל ${"%.2f".format(kg)} ק״ג × $ML_PER_KG_LOW\u200E–\u200E$ML_PER_KG_HIGH מ״ל לק״ג ליום (AAP: כ-75 מ״ל לכל 453 גרם). עד $DAILY_CAP_ML מ״ל ביממה."
             },
             warning = pretermWarning,
         )

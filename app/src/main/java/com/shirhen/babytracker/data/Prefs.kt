@@ -67,7 +67,60 @@ class Prefs(context: Context) {
         get() = sp.getLong(KEY_LAST_PULL, 0L)
         set(value) = sp.edit().putLong(KEY_LAST_PULL, value).apply()
 
+    // ---- Trackers shown on this phone ----
+
+    private val _hidden = MutableStateFlow(
+        sp.getStringSet(KEY_HIDDEN, emptySet())!!
+            .mapNotNull { runCatching { Tracker.valueOf(it) }.getOrNull() }
+            .filter { it.canHide }
+            .toSet(),
+    )
+    /** Trackers hidden on this phone. Each phone chooses its own (grandma may only need feeds and diapers). */
+    val hiddenTrackers: StateFlow<Set<Tracker>> = _hidden
+
+    fun setTrackerShown(t: Tracker, shown: Boolean) {
+        if (!t.canHide) return
+        val next = if (shown) _hidden.value - t else _hidden.value + t
+        sp.edit().putStringSet(KEY_HIDDEN, next.map { it.name }.toSet()).apply()
+        _hidden.value = next
+    }
+
+    fun isShown(type: EventType) = Tracker.of(type) !in _hidden.value
+
+    private val _night = MutableStateFlow(
+        sp.getString(KEY_NIGHT_BUTTONS, null)
+            ?.split(',')
+            ?.mapNotNull { runCatching { EventType.valueOf(it) }.getOrNull() }
+            ?.filter { it in NIGHT_CHOICES }
+            ?: NIGHT_DEFAULT,
+    )
+    /** Buttons on the night screen, in the order they were chosen. */
+    val nightButtons: StateFlow<List<EventType>> = _night
+
+    fun setNightButtons(list: List<EventType>) {
+        val clean = list.distinct().filter { it in NIGHT_CHOICES }.take(NIGHT_MAX)
+        sp.edit().putString(KEY_NIGHT_BUTTONS, clean.joinToString(",") { it.name }).apply()
+        _night.value = clean
+    }
+
+    /** Last role this phone had in the family, so the app does not flash extra options while loading. */
+    var cachedRole: Role
+        get() = runCatching { Role.valueOf(sp.getString(KEY_ROLE, null)!!) }.getOrDefault(Role.PARENT)
+        set(value) = sp.edit().putString(KEY_ROLE, value.name).apply()
+
+    private val _lastBackupAt = MutableStateFlow(sp.getLong(KEY_LAST_BACKUP, 0L))
+    val lastBackupAt: StateFlow<Long> = _lastBackupAt
+    fun markBackup() {
+        val now = System.currentTimeMillis()
+        sp.edit().putLong(KEY_LAST_BACKUP, now).apply()
+        _lastBackupAt.value = now
+    }
+
     private companion object {
+        const val KEY_HIDDEN = "hidden_trackers"
+        const val KEY_NIGHT_BUTTONS = "night_buttons"
+        const val KEY_ROLE = "cached_role"
+        const val KEY_LAST_BACKUP = "last_backup"
         const val KEY_NAME = "user_name"
         const val KEY_FAMILY = "family_id"
         const val KEY_LAST_PULL = "last_pull"

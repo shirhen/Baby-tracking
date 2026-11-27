@@ -151,11 +151,7 @@ fun EventEditorDialog(
                 modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Text(
-                    "${Fmt.emoji(e.type)} ${Fmt.title(e.type)}" + if (isNew) "" else " – עריכה",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                )
+                TypeTitle(e.type, Fmt.title(e.type) + if (isNew) "" else " – עריכה")
                 TimeRow(e.time) { e = e.copy(time = it) }
                 HorizontalDivider()
 
@@ -200,7 +196,7 @@ fun EventEditorDialog(
                     EventType.DIAPER -> DiaperButtons { wet, dirty -> onSave(e.copy(wet = wet, dirty = dirty)) }
                     EventType.PUMP -> PumpFields(e) { e = it }
                     EventType.BATH -> Muted("מקלחת נשמרת עם השעה שנבחרה.")
-                    EventType.MED -> Text("💊 ${e.medName ?: "תרופה"}", style = MaterialTheme.typography.titleMedium)
+                    EventType.MED -> IconTitle(com.shirhen.babytracker.R.drawable.ic_med, e.medName ?: "תרופה", tint = Palette.medInk)
                     EventType.CHECKIN -> Muted(Fmt.describe(e))
                 }
 
@@ -342,9 +338,9 @@ private fun SideTimer(label: String, seconds: Int, isRunning: Boolean, onToggle:
 private fun DiaperButtons(onPick: (wet: Boolean, dirty: Boolean) -> Unit) {
     Muted("לחיצה אחת שומרת:")
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-        QuickTile("💧", "רטוב", Palette.diaper, Modifier.weight(1f)) { onPick(true, false) }
-        QuickTile("💩", "מלוכלך", Palette.feed, Modifier.weight(1f)) { onPick(false, true) }
-        QuickTile("💧💩", "שניהם", Palette.pump, Modifier.weight(1f)) { onPick(true, true) }
+        QuickTile(com.shirhen.babytracker.R.drawable.ic_wet, "רטוב", Palette.diaper, Palette.diaperInk, Modifier.weight(1f)) { onPick(true, false) }
+        QuickTile(com.shirhen.babytracker.R.drawable.ic_poop, "מלוכלך", Palette.poop, Palette.poopInk, Modifier.weight(1f)) { onPick(false, true) }
+        QuickTile(com.shirhen.babytracker.R.drawable.ic_diaper, "שניהם", Palette.pump, Palette.pumpInk, Modifier.weight(1f)) { onPick(true, true) }
     }
     Spacer(Modifier.height(4.dp))
 }

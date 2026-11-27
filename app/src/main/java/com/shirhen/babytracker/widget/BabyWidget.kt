@@ -1,5 +1,14 @@
 package com.shirhen.babytracker.widget
 
+import android.view.View
+import androidx.glance.ColorFilter
+import androidx.glance.Image
+import androidx.glance.ImageProvider
+import androidx.glance.layout.size
+import androidx.glance.layout.width
+import androidx.glance.text.TextAlign
+import com.shirhen.babytracker.data.Tracker
+
 import android.content.Context
 import com.shirhen.babytracker.ui.DAY_MS
 import androidx.glance.appwidget.SizeMode
@@ -86,17 +95,36 @@ private data class WidgetData(
     val perFeed: String?,
     val todayMl: Int,
     val feedsToday: Int,
+    val hidden: Set<Tracker>,
 )
 
-private val bg = ColorProvider(Color(0xFFFFF8F3))
-private val ink = ColorProvider(Color(0xFF3B2F2A))
-private val muted = ColorProvider(Color(0xFF7A6A62))
-private val feedColor = ColorProvider(Color(0xFFF6DCC8))
+/** One tile: which entry it opens, what it shows and its colours. */
+private class TileSpec(
+    val type: EventType,
+    val icon: Int,
+    val label: String,
+    val last: Event?,
+    val bg: ColorProvider,
+    val ink: ColorProvider,
+    val extra: String?,
+)
+
+// "Botanical garden" colours, as in the app.
+private val bg = ColorProvider(Color(0xFFF6F6EE))
+private val ink = ColorProvider(Color(0xFF1F2A22))
+private val muted = ColorProvider(Color(0xFF566259))
+private val feedColor = ColorProvider(Color(0xFFFCE5C7))
 private val diaperColor = ColorProvider(Color(0xFFDCE9F5))
-private val pumpColor = ColorProvider(Color(0xFFE6DFF3))
-private val bathColor = ColorProvider(Color(0xFFD9EEE1))
-private val medColor = ColorProvider(Color(0xFFFBEAF0))
-private val poopColor = ColorProvider(Color(0xFFFAEEDA))
+private val pumpColor = ColorProvider(Color(0xFFE6DDF0))
+private val bathColor = ColorProvider(Color(0xFFDDEDE2))
+private val medColor = ColorProvider(Color(0xFFF8DCDD))
+private val poopColor = ColorProvider(Color(0xFFEFE3CF))
+private val feedInk = ColorProvider(Color(0xFF7A4A0A))
+private val diaperInk = ColorProvider(Color(0xFF1F4466))
+private val pumpInk = ColorProvider(Color(0xFF43306E))
+private val bathInk = ColorProvider(Color(0xFF276B4E))
+private val medInk = ColorProvider(Color(0xFF7A2328))
+private val poopInk = ColorProvider(Color(0xFF5C4316))
 
 /**
  * Six tiles, like the cards in the app. Each tile shows a live count-up timer since the last
@@ -143,19 +171,35 @@ class BabyWidget : GlanceAppWidget() {
                 ?: dao.since(0).firstOrNull { it.type == EventType.DIAPER && it.dirty },
             medLine = run {
                 val statuses = Repo.db.meds().active().map { MedSchedule.status(it, recent, now) }
-                statuses.firstOrNull { it.overdueSlot != null }?.let { "⚠️ ${it.med.name} ${Fmt.time(it.overdueSlot!!)}" }
+                statuses.firstOrNull { it.overdueSlot != null }?.let { "באיחור: ${it.med.name} ${Fmt.time(it.overdueSlot!!)}" }
                     ?: statuses.filter { it.nextDue != null }.minByOrNull { it.nextDue!! }
                         ?.let { "הבא: ${it.med.name} ${Fmt.time(it.nextDue!!)}" }
             },
             nextSide = when (recent.lastBreastSide()) { "L" -> "ימין"; "R" -> "שמאל"; else -> null },
-            perFeed = guide?.perFeedMinMl?.let { "${it}–${guide.perFeedMaxMl}" },
+            perFeed = guide?.perFeedMinMl?.let { "${it}\u200E–\u200E${guide.perFeedMaxMl}" },
             todayMl = todaySummary.bottleMl,
             feedsToday = todaySummary.feeds,
+            hidden = Repo.prefs.hiddenTrackers.value,
         )
     }
 
     @Composable
     private fun Content(context: Context, d: WidgetData) {
+        // The app is Hebrew, so the widget is always right to left, even on a phone set to English.
+        // Launchers lay out widgets by the phone's language, so on a left-to-right phone the order is flipped here.
+        val rtl = context.resources.configuration.layoutDirection == View.LAYOUT_DIRECTION_RTL
+        fun shown(t: Tracker) = t !in d.hidden
+        val tiles = buildList {
+            add(TileSpec(EventType.FEED, R.drawable.ic_feed, "האכלה", d.lastFeed, feedColor, feedInk, d.lastFeed?.let { lastFeedLine(it) }))
+            if (shown(Tracker.DIAPER)) add(TileSpec(EventType.DIAPER, R.drawable.ic_diaper, "חיתול", d.lastDiaper, diaperColor, diaperInk, d.lastDiaper?.let { Fmt.describe(it) }))
+            if (shown(Tracker.PUMP)) add(TileSpec(EventType.PUMP, R.drawable.ic_pump, "שאיבה", d.lastPump, pumpColor, pumpInk, d.lastPump?.let { Fmt.describe(it) }))
+            if (shown(Tracker.DIAPER)) add(TileSpec(EventType.DIAPER, R.drawable.ic_poop, "קקי אחרון", d.lastPoop, poopColor, poopInk, null))
+            if (shown(Tracker.MED)) add(TileSpec(EventType.MED, R.drawable.ic_med, "תרופה", d.lastMed, medColor, medInk,
+                listOfNotNull(d.lastMed?.medName, d.medLine).joinToString(" · ")))
+            if (shown(Tracker.BATH)) add(TileSpec(EventType.BATH, R.drawable.ic_bath, "מקלחת", d.lastBath, bathColor, bathInk, null))
+        }
+        val rows = tiles.chunked(2)
+
         Column(
             modifier = GlanceModifier
                 .fillMaxSize()
@@ -163,81 +207,62 @@ class BabyWidget : GlanceAppWidget() {
                 .cornerRadius(20.dp)
                 .padding(8.dp),
         ) {
-            // 3 rows of tiles below a one-line header; each tile has 3dp padding around it.
+            // Rows of tiles below a one-line header; each tile has 3dp padding around it.
             val size = LocalSize.current
-            val scale = scaleFor((size.height.value - 16f - 20f) / 3f - 6f)
+            val scale = scaleFor((size.height.value - 16f - 20f) / rows.size.coerceAtLeast(1) - 6f)
             val header = buildList {
                 add("היום: ${d.feedsToday} האכלות · ${d.todayMl} מ״ל")
                 d.perFeed?.let { add("יעד $it מ״ל") }
             }.joinToString(" · ")
             Text(
                 header,
-                style = TextStyle(color = muted, fontSize = 11.sp),
+                style = TextStyle(color = muted, fontSize = 11.sp, textAlign = TextAlign.Right),
                 maxLines = 1,
-                modifier = GlanceModifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp)
+                modifier = GlanceModifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 2.dp)
                     .clickable(actionStartActivity<MainActivity>()),
             )
-            // Right to left: feed | diaper, pump | poop, medication | bath.
-            Row(modifier = GlanceModifier.fillMaxWidth().defaultWeight()) {
-                Tile(context, EventType.FEED, d.lastFeed, feedColor,
-                    extra = d.lastFeed?.let { lastFeedLine(it) },
-                    scale = scale,
-                    modifier = GlanceModifier.defaultWeight().fillMaxHeight())
-                Tile(context, EventType.DIAPER, d.lastDiaper, diaperColor,
-                    extra = d.lastDiaper?.let { Fmt.describe(it) },
-                    scale = scale,
-                    modifier = GlanceModifier.defaultWeight().fillMaxHeight())
-            }
-            Row(modifier = GlanceModifier.fillMaxWidth().defaultWeight()) {
-                Tile(context, EventType.PUMP, d.lastPump, pumpColor,
-                    extra = d.lastPump?.let { Fmt.describe(it) },
-                    scale = scale,
-                    modifier = GlanceModifier.defaultWeight().fillMaxHeight())
-                Tile(context, EventType.DIAPER, d.lastPoop, poopColor,
-                    extra = null,
-                    scale = scale,
-                    modifier = GlanceModifier.defaultWeight().fillMaxHeight(),
-                    label = "💩 קקי אחרון")
-            }
-            Row(modifier = GlanceModifier.fillMaxWidth().defaultWeight()) {
-                Tile(context, EventType.MED, d.lastMed, medColor,
-                    extra = listOfNotNull(d.lastMed?.medName, d.medLine).joinToString(" · "),
-                    scale = scale,
-                    modifier = GlanceModifier.defaultWeight().fillMaxHeight())
-                Tile(context, EventType.BATH, d.lastBath, bathColor,
-                    extra = null,
-                    scale = scale,
-                    modifier = GlanceModifier.defaultWeight().fillMaxHeight())
+            // Right to left: feed | diaper, pump | poop, medication | bath (hidden trackers are skipped).
+            rows.forEach { row ->
+                Row(modifier = GlanceModifier.fillMaxWidth().defaultWeight()) {
+                    (if (rtl) row else row.reversed()).forEach { t ->
+                        Tile(context, t, scale, rtl, GlanceModifier.defaultWeight().fillMaxHeight())
+                    }
+                }
             }
         }
     }
 
     @Composable
-    private fun Tile(
-        context: Context,
-        type: EventType,
-        last: Event?,
-        color: ColorProvider,
-        extra: String?,
-        scale: TileScale,
-        modifier: GlanceModifier,
-        label: String = "${Fmt.emoji(type)} ${Fmt.title(type)}",
-    ) {
+    private fun Tile(context: Context, t: TileSpec, scale: TileScale, rtl: Boolean, modifier: GlanceModifier) {
+        val last = t.last
         Box(modifier = modifier.padding(3.dp)) {
             Column(
                 modifier = GlanceModifier
                     .fillMaxSize()
-                    .background(color)
+                    .background(t.bg)
                     .cornerRadius(16.dp)
                     .padding(horizontal = 10.dp, vertical = 4.dp)
-                    .clickable(quickAction(context, type)),
+                    .clickable(quickAction(context, t.type)),
                 verticalAlignment = Alignment.CenterVertically,
+                // Start is the right edge only when the phone itself is right to left.
+                horizontalAlignment = if (rtl) Alignment.Start else Alignment.End,
             ) {
-                Text(
-                    label,
-                    style = TextStyle(color = ink, fontSize = scale.titleSp.sp, fontWeight = FontWeight.Medium),
-                    maxLines = 1,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    val iconSize = (scale.titleSp + 3).dp
+                    val icon = @Composable {
+                        Image(
+                            provider = ImageProvider(t.icon),
+                            contentDescription = null,
+                            colorFilter = ColorFilter.tint(t.ink),
+                            modifier = GlanceModifier.size(iconSize),
+                        )
+                    }
+                    val label = @Composable {
+                        Text(t.label, style = TextStyle(color = ink, fontSize = scale.titleSp.sp, fontWeight = FontWeight.Medium), maxLines = 1)
+                    }
+                    // Icon on the right of the title.
+                    if (rtl) { icon(); Spacer(GlanceModifier.width(4.dp)); label() } else { label(); Spacer(GlanceModifier.width(4.dp)); icon() }
+                }
                 val big = TextStyle(color = ink, fontSize = scale.numberSp.sp, fontWeight = FontWeight.Bold)
                 when {
                     last == null -> Text("—", style = big, maxLines = 1)
@@ -245,10 +270,10 @@ class BabyWidget : GlanceAppWidget() {
                     System.currentTimeMillis() - last.time >= DAY_MS -> Text(longSince(last.time), style = big, maxLines = 1)
                     else -> AndroidRemoteViews(chronometer(context, last.time, scale.numberSp))
                 }
-                val sub = listOfNotNull(last?.let { "מ-${Fmt.time(it.time)}" }, extra?.takeIf { it.isNotBlank() }).joinToString(" · ")
+                val sub = listOfNotNull(last?.let { Fmt.time(it.time) }, t.extra?.takeIf { it.isNotBlank() }).joinToString(" · ")
                 if (sub.isNotEmpty() && scale.showSub) {
                     Spacer(GlanceModifier.height(1.dp))
-                    Text(sub, style = TextStyle(color = muted, fontSize = 11.sp), maxLines = 1)
+                    Text(sub, style = TextStyle(color = muted, fontSize = 11.sp, textAlign = TextAlign.Right), maxLines = 1)
                 }
             }
         }
@@ -303,7 +328,7 @@ class LogBathAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
         Repo.save(Event(type = EventType.BATH, time = System.currentTimeMillis()))
         withContext(Dispatchers.Main) {
-            Toast.makeText(context, "🛁 מקלחת נרשמה", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "מקלחת נרשמה", Toast.LENGTH_SHORT).show()
         }
     }
 }

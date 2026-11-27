@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
@@ -45,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import com.shirhen.babytracker.data.Event
 import com.shirhen.babytracker.data.EventType
 import com.shirhen.babytracker.data.Repo
+import com.shirhen.babytracker.data.Tracker
 import com.shirhen.babytracker.data.toLocalDate
 import com.shirhen.babytracker.guide.FeedingGuide
 import java.time.LocalDate
@@ -107,13 +109,19 @@ fun JournalScreen(
             val lastFeed = events.firstOrNull { it.type == EventType.FEED }
             val status = buildList {
                 lastFeed?.let { add("עברו ${Fmt.since(it.time, now)} מההאכלה") }
-                guide?.perFeedMinMl?.let { add("יעד $it–${guide.perFeedMaxMl} מ״ל") }
+                guide?.perFeedMinMl?.let { add("יעד $it\u200E–\u200E${guide.perFeedMaxMl} מ״ל") }
             }.joinToString(" · ")
             if (status.isNotEmpty()) Muted(status)
 
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
-                EventType.entries.forEach { t ->
-                    AssistChip(onClick = { onNew(t) }, label = { Text("${Fmt.emoji(t)} ${Fmt.title(t)}") })
+            // One icon button per tracker shown on this phone, like the design.
+            val hidden by Repo.prefs.hiddenTrackers.collectAsState()
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                EventType.entries.filter { Tracker.of(it) !in hidden }.forEach { t ->
+                    Box(
+                        Modifier.weight(1f).height(44.dp).clip(RoundedCornerShape(16.dp)).background(Palette.light(t))
+                            .clickable(onClickLabel = Fmt.title(t)) { onNew(t) },
+                        contentAlignment = Alignment.Center,
+                    ) { AppIcon(AppIcons.of(t), tint = Palette.inkOf(t), description = Fmt.title(t)) }
                 }
             }
 
@@ -140,7 +148,7 @@ fun JournalScreen(
             }
             when {
                 parsed != null -> Text(
-                    "יירשם: ${Fmt.emoji(parsed.type)} ${Fmt.describe(parsed)} · ${Fmt.time(parsed.time)}",
+                    "יירשם: ${Fmt.title(parsed.type)} · ${Fmt.describe(parsed)} · ${Fmt.time(parsed.time)}",
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.primary,
@@ -198,7 +206,7 @@ private fun Bubble(e: Event, sincePrevFeed: Long?, mine: Boolean, onClick: () ->
                 .padding(horizontal = 12.dp, vertical = 8.dp),
         ) {
             val ink = if (mine) mineInk else otherInk
-            Text("${Fmt.emoji(e.type)} ${Fmt.title(e.type)}", color = ink, fontWeight = FontWeight.Bold)
+            IconTitle(AppIcons.of(e.type), Fmt.title(e.type), style = MaterialTheme.typography.bodyLarge, tint = ink, iconSize = 18.dp)
             Text(Fmt.describe(e), color = ink, style = MaterialTheme.typography.bodyMedium)
             val meta = buildList {
                 if (e.createdBy.isNotBlank()) add(e.createdBy)

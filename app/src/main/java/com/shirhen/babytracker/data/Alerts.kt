@@ -117,7 +117,7 @@ object Alerts {
             val slot = MedSchedule.status(m, events, now).overdueSlot ?: return@mapNotNull null
             PatternAlert(
                 "med:${m.id}:$slot",
-                "💊 הגיע הזמן ל${m.name}",
+                "הגיע הזמן ל${m.name}",
                 "השעה ${Fmt.time(slot)} עברה ועוד לא נרשם מתן" + if (m.dose.isNotBlank()) " (${m.dose})." else ".",
                 isMedReminder = true,
             )

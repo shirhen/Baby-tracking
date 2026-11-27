@@ -11,6 +11,7 @@ class BabyApp : Application() {
         super.onCreate()
         Repo.init(this)
         Notifier.createChannels(this)
+        FamilySync.initRole()
         FamilySync.start()
         SyncWorker.schedule(this)
     }

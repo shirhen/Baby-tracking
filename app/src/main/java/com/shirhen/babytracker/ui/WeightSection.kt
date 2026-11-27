@@ -69,7 +69,7 @@ fun WeightSection(weights: List<Weight>, profile: BabyProfile?) {
         if (points.size >= 2) ChartCard(points)
         HistoryList(points)
         Muted(
-            "לייחוס: עלייה ממוצעת בארבעת החודשים הראשונים היא כ-125–200 גרם לשבוע, ומיום 4 כ-28 גרם ליום " +
+            "לייחוס: עלייה ממוצעת בארבעת החודשים הראשונים היא כ-125\u200E–\u200E200 גרם לשבוע, ומיום 4 כ-28 גרם ליום " +
                 "(הנחיית NHS Wales – Hywel Dda, לפי Mohrbacher & Kendall-Tackett). כל תינוק שונה – המעקב בטיפת חלב קובע.",
         )
     }
@@ -83,7 +83,7 @@ private fun AddWeightCard() {
     var day by remember { mutableStateOf(LocalDate.now()) }
     Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("⚖️ שקילה חדשה", fontWeight = FontWeight.Bold)
+            IconTitle(com.shirhen.babytracker.R.drawable.ic_weight, "שקילה חדשה", style = MaterialTheme.typography.bodyLarge)
             Stepper("משקל", grams, { grams = it }, step = 10, unit = "גרם", max = 15000)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 OutlinedButton(onClick = { pickDay(context, day) { day = it } }) { Text(Fmt.dayLabel(day)) }

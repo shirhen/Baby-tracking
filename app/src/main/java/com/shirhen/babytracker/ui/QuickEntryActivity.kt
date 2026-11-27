@@ -47,7 +47,7 @@ class QuickEntryActivity : ComponentActivity() {
                             Repo.db.weights().latest()?.grams,
                             history.count { it.type == EventType.FEED && it.time >= now - DAY_MS },
                         )
-                        Ctx(history, guide?.perFeedMinMl?.let { "יעד משוער לארוחה: $it–${guide.perFeedMaxMl} מ״ל" }, Repo.db.meds().active())
+                        Ctx(history, guide?.perFeedMinMl?.let { "יעד משוער לארוחה: $it\u200E–\u200E${guide.perFeedMaxMl} מ״ל" }, Repo.db.meds().active())
                     }
                 }
                 ctx?.takeIf { type == EventType.MED }?.let { c ->

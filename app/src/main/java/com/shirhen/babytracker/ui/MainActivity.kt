@@ -1,5 +1,10 @@
 package com.shirhen.babytracker.ui
 
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBarItemDefaults
+import com.shirhen.babytracker.R
+import com.shirhen.babytracker.data.Role
+
 import java.time.LocalDate
 import com.shirhen.babytracker.data.Medication
 import com.shirhen.babytracker.alerts.Notifier
@@ -130,7 +135,7 @@ private fun AppRoot() {
             events.count { it.type == EventType.FEED && it.time >= now - DAY_MS },
         )
     }
-    val guideHint = guide?.perFeedMinMl?.let { "יעד משוער לארוחה: $it–${guide.perFeedMaxMl} מ״ל" }
+    val guideHint = guide?.perFeedMinMl?.let { "יעד משוער לארוחה: $it\u200E–\u200E${guide.perFeedMaxMl} מ״ל" }
     val suggestedSide = nextSideOf(events.lastBreastSide())
 
     val startNew: (EventType) -> Unit = { type ->
@@ -140,8 +145,16 @@ private fun AppRoot() {
             else -> editing = Editing(newEvent(type, events), true)
         }
     }
+    val role by FamilySync.myRole.collectAsState()
+    val myName by Repo.prefs.userName.collectAsState()
     val startEdit: (Event) -> Unit = { e ->
-        if (e.type == EventType.CHECKIN) checkIn = CheckIn(e) else editing = Editing(e, false)
+        // Recorders change only what they logged themselves.
+        val allowed = role == Role.PARENT || (e.createdBy.isNotBlank() && e.createdBy == myName)
+        when {
+            !allowed -> scope.launch { snackbar.showSnackbar("רק הורה יכול לערוך רשומה שמישהו אחר הוסיף") }
+            e.type == EventType.CHECKIN -> checkIn = CheckIn(e)
+            else -> editing = Editing(e, false)
+        }
     }
     val ageDays = profile?.birthEpochDay?.let { (LocalDate.now().toEpochDay() - it).toInt() }
 
@@ -150,7 +163,7 @@ private fun AppRoot() {
         scope.launch {
             Repo.save(e)
             val result = snackbar.showSnackbar(
-                message = "נרשם: ${Fmt.emoji(e.type)} ${Fmt.describe(e)} · ${Fmt.time(e.time)}",
+                message = "נרשם: ${Fmt.title(e.type)} · ${Fmt.describe(e)} · ${Fmt.time(e.time)}",
                 actionLabel = "ביטול",
                 duration = SnackbarDuration.Short,
             )
@@ -173,7 +186,8 @@ private fun AppRoot() {
                 suggestedSide = suggestedSide,
                 snackbar = snackbar,
                 onOpen = startNew,
-                onQuickLog = repeatLast,
+                // Medications and the daily summary need a choice, so a long press opens them.
+                onQuickLog = { t -> if (t == EventType.MED || t == EventType.CHECKIN) startNew(t) else repeatLast(t) },
                 onExit = { nightOverride = false },
             )
         } else {
@@ -181,11 +195,25 @@ private fun AppRoot() {
                 snackbarHost = { SnackbarHost(snackbar) },
                 floatingActionButton = { if (tab == Tab.CLOCK) ActionFab(startNew) },
                 bottomBar = {
-                    NavigationBar {
-                        NavigationBarItem(selected = tab == Tab.CLOCK, onClick = { tab = Tab.CLOCK }, icon = { Icon(Icons.Filled.Schedule, null) }, label = { Text("שעון") })
-                        NavigationBarItem(selected = tab == Tab.JOURNAL, onClick = { tab = Tab.JOURNAL }, icon = { Icon(Icons.AutoMirrored.Filled.Chat, null) }, label = { Text("יומן") })
-                        NavigationBarItem(selected = tab == Tab.DATA, onClick = { tab = Tab.DATA }, icon = { Icon(Icons.Filled.BarChart, null) }, label = { Text("נתונים") })
-                        NavigationBarItem(selected = tab == Tab.SETTINGS, onClick = { tab = Tab.SETTINGS }, icon = { Icon(Icons.Filled.Settings, null) }, label = { Text("הגדרות") })
+                    NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+                        listOf(
+                            Triple(Tab.CLOCK, R.drawable.ic_nav_home, "בית"),
+                            Triple(Tab.JOURNAL, R.drawable.ic_nav_journal, "יומן"),
+                            Triple(Tab.DATA, R.drawable.ic_nav_stats, "נתונים"),
+                            Triple(Tab.SETTINGS, R.drawable.ic_nav_settings, "הגדרות"),
+                        ).forEach { (t, icon, label) ->
+                            NavigationBarItem(
+                                selected = tab == t,
+                                onClick = { tab = t },
+                                icon = { AppIcon(icon) },
+                                label = { Text(label) },
+                                colors = NavigationBarItemDefaults.colors(
+                                    selectedIconColor = Palette.primary,
+                                    selectedTextColor = Palette.primary,
+                                    indicatorColor = Palette.primarySoft,
+                                ),
+                            )
+                        }
                     }
                 },
             ) { pad ->
@@ -207,7 +235,7 @@ private fun AppRoot() {
                     )
                     Tab.JOURNAL -> JournalScreen(events, guide, now, startNew, startEdit, quickSave, m)
                     Tab.DATA -> HistoryScreen(events, weights, profile, now, startEdit, m)
-                    else -> SettingsScreen(profile, weights, meds, onEditMed = { editMed = EditMed(it) }, modifier = m)
+                    else -> SettingsScreen(profile, weights, meds, events, onEditMed = { editMed = EditMed(it) }, modifier = m)
                 }
             }
         }
@@ -224,7 +252,7 @@ private fun AppRoot() {
                         scope.launch {
                             list.forEach { Repo.save(it) }
                             val result = snackbar.showSnackbar(
-                                "נרשם: 💊 ${list.joinToString(", ") { it.medName ?: "" }} · ${Fmt.time(list.first().time)}",
+                                "נרשם: ${list.joinToString(", ") { it.medName ?: "" }} · ${Fmt.time(list.first().time)}",
                                 actionLabel = "ביטול",
                                 duration = SnackbarDuration.Short,
                             )
