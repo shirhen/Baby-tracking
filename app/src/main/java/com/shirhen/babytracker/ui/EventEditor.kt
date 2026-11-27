@@ -140,11 +140,11 @@ fun EventEditorDialog(
         else -> e
     }
 
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    Dialog(onDismissRequest = onDismiss, properties = EntryDialogProperties) {
         Surface(
             shape = RoundedCornerShape(24.dp),
             color = MaterialTheme.colorScheme.surface,
-            modifier = Modifier.systemBarsPadding().fillMaxWidth(0.94f).padding(vertical = 12.dp),
+            modifier = Modifier.dialogBarsPadding().fillMaxWidth(0.94f).padding(vertical = 12.dp),
         ) {
             Column(Modifier.padding(20.dp)) {
             Column(

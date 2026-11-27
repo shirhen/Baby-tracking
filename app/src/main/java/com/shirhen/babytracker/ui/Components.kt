@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -145,3 +146,32 @@ fun Muted(text: String, modifier: Modifier = Modifier, align: TextAlign? = null)
 }
 
 fun Long.dayOf(): LocalDate = toLocalDate()
+
+/**
+ * Keeps a dialog's content clear of the status bar, the phone's navigation buttons and the keyboard.
+ * Dialog windows often get no inset information (Android 15 draws apps behind the bars), so the bar
+ * sizes are read from the activity window, and the dialog itself is laid out edge to edge
+ * (DialogProperties(decorFitsSystemWindows = false)) so these sizes are exactly what is covered.
+ */
+@Composable
+fun Modifier.dialogBarsPadding(): Modifier {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    var c: android.content.Context? = context
+    while (c is android.content.ContextWrapper && c !is android.app.Activity) c = c.baseContext
+    val decor = (c as? android.app.Activity)?.window?.decorView
+    val bars = decor?.let { androidx.core.view.ViewCompat.getRootWindowInsets(it) }
+        ?.getInsets(
+            androidx.core.view.WindowInsetsCompat.Type.systemBars() or
+                androidx.core.view.WindowInsetsCompat.Type.displayCutout(),
+        )
+    val top = with(density) { bars?.top?.toDp() } ?: 28.dp
+    val bottom = with(density) { bars?.bottom?.toDp() } ?: 56.dp
+    return this.padding(top = top, bottom = bottom).imePadding()
+}
+
+/** Properties for our full-width entry dialogs; pair with [dialogBarsPadding]. */
+val EntryDialogProperties = androidx.compose.ui.window.DialogProperties(
+    usePlatformDefaultWidth = false,
+    decorFitsSystemWindows = false,
+)

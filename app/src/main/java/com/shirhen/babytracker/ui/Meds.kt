@@ -96,8 +96,8 @@ fun MedGiveDialog(
     var time by remember { mutableStateOf(now) }
     var note by remember { mutableStateOf("") }
 
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(shape = RoundedCornerShape(24.dp), modifier = Modifier.systemBarsPadding().fillMaxWidth(0.94f).padding(vertical = 12.dp)) {
+    Dialog(onDismissRequest = onDismiss, properties = EntryDialogProperties) {
+        Surface(shape = RoundedCornerShape(24.dp), modifier = Modifier.dialogBarsPadding().fillMaxWidth(0.94f).padding(vertical = 12.dp)) {
             Column(Modifier.padding(20.dp)) {
             Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 TypeTitle(EventType.MED, "מתן תרופה")
@@ -175,8 +175,8 @@ fun MedEditDialog(
         }, base.hour, base.minute, true).show()
     }
 
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(shape = RoundedCornerShape(24.dp), modifier = Modifier.systemBarsPadding().fillMaxWidth(0.94f).padding(vertical = 12.dp)) {
+    Dialog(onDismissRequest = onDismiss, properties = EntryDialogProperties) {
+        Surface(shape = RoundedCornerShape(24.dp), modifier = Modifier.dialogBarsPadding().fillMaxWidth(0.94f).padding(vertical = 12.dp)) {
             Column(Modifier.padding(20.dp)) {
             Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 TypeTitle(EventType.MED, if (initial == null) "תרופה חדשה" else "עריכת תרופה")

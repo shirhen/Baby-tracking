@@ -78,8 +78,8 @@ fun CheckInDialog(
     var symptoms by remember { mutableStateOf(initial?.symptomList?.toSet() ?: emptySet()) }
     var healthy by remember { mutableStateOf(initial?.symptoms != null && initial.symptomList.isEmpty()) }
 
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(shape = RoundedCornerShape(24.dp), modifier = Modifier.systemBarsPadding().fillMaxWidth(0.96f).padding(vertical = 12.dp)) {
+    Dialog(onDismissRequest = onDismiss, properties = EntryDialogProperties) {
+        Surface(shape = RoundedCornerShape(24.dp), modifier = Modifier.dialogBarsPadding().fillMaxWidth(0.96f).padding(vertical = 12.dp)) {
             Column(Modifier.padding(18.dp)) {
             Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 TypeTitle(EventType.CHECKIN, "איך היה?")
