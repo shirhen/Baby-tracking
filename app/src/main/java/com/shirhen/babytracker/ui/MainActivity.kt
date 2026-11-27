@@ -47,6 +47,7 @@ import com.shirhen.babytracker.data.EventType
 import com.shirhen.babytracker.data.FeedKind
 import com.shirhen.babytracker.data.Repo
 import com.shirhen.babytracker.data.lastBreastSide
+import com.shirhen.babytracker.data.nextBreastSide
 import com.shirhen.babytracker.data.nextSideOf
 import com.shirhen.babytracker.guide.FeedingGuide
 import com.shirhen.babytracker.sync.FamilySync
@@ -136,7 +137,7 @@ private fun AppRoot() {
         )
     }
     val guideHint = guide?.perFeedMinMl?.let { "יעד משוער לארוחה: $it\u200E–\u200E${guide.perFeedMaxMl} מ״ל" }
-    val suggestedSide = nextSideOf(events.lastBreastSide())
+    val suggestedSide = events.nextBreastSide()
 
     val startNew: (EventType) -> Unit = { type ->
         when (type) {

@@ -14,6 +14,7 @@ import com.shirhen.babytracker.data.EventType
 import com.shirhen.babytracker.data.Medication
 import com.shirhen.babytracker.data.Repo
 import com.shirhen.babytracker.data.lastBreastSide
+import com.shirhen.babytracker.data.nextBreastSide
 import com.shirhen.babytracker.data.nextSideOf
 import com.shirhen.babytracker.guide.FeedingGuide
 import kotlinx.coroutines.Dispatchers
@@ -71,7 +72,7 @@ class QuickEntryActivity : ComponentActivity() {
                     EventEditorDialog(
                         initial = newEvent(type, c.history),
                         isNew = true,
-                        suggestedSide = nextSideOf(c.history.lastBreastSide()),
+                        suggestedSide = c.history.nextBreastSide(),
                         guideHint = c.hint,
                         onDismiss = { finish() },
                         onSave = { e ->

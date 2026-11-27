@@ -62,6 +62,7 @@ import com.shirhen.babytracker.data.MedSchedule
 import com.shirhen.babytracker.data.EventType
 import com.shirhen.babytracker.data.Repo
 import com.shirhen.babytracker.data.lastBreastSide
+import com.shirhen.babytracker.data.nextBreastSide
 import com.shirhen.babytracker.data.startMillis
 import com.shirhen.babytracker.data.summarize
 import com.shirhen.babytracker.guide.FeedingGuide
@@ -175,7 +176,7 @@ class BabyWidget : GlanceAppWidget() {
                     ?: statuses.filter { it.nextDue != null }.minByOrNull { it.nextDue!! }
                         ?.let { "הבא: ${it.med.name} ${Fmt.time(it.nextDue!!)}" }
             },
-            nextSide = when (recent.lastBreastSide()) { "L" -> "ימין"; "R" -> "שמאל"; else -> null },
+            nextSide = when (recent.nextBreastSide()) { "R" -> "ימין"; "L" -> "שמאל"; else -> null },
             perFeed = guide?.perFeedMinMl?.let { "${it}\u200E–\u200E${guide.perFeedMaxMl}" },
             todayMl = todaySummary.bottleMl,
             feedsToday = todaySummary.feeds,

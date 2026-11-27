@@ -52,5 +52,19 @@ fun nextSideOf(lastSide: String?): String? = when (lastSide) {
     else -> null
 }
 
+/**
+ * Side to start the next breastfeed on. The AAP advises alternating the breast offered first, and
+ * Cleveland Clinic to start with the breast that was emptied less (it feels fuller):
+ * after one side, offer the other; after both sides, offer the side the feed ended on.
+ */
+fun List<Event>.nextBreastSide(): String? {
+    val e = firstOrNull { it.type == EventType.FEED && (it.usedLeft || it.usedRight) } ?: return null
+    return when {
+        e.usedLeft && e.usedRight -> e.lastSide?.takeIf { it == "L" || it == "R" }
+        e.usedLeft -> "R"
+        else -> "L"
+    }
+}
+
 fun List<Event>.lastBreastSide(): String? =
     firstOrNull { it.type == EventType.FEED && it.lastSide != null }?.lastSide

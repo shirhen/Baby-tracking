@@ -267,7 +267,7 @@ private fun FeedFields(
                 sides.isEmpty() -> "אפשר לסמן צד אחד או את שניהם."
                 sides.length == 2 -> "שני הצדדים · סיים ב${Fmt.side(e.lastSide?.takeIf { it in sides } ?: sides.last().toString())}"
                 else -> "צד ${Fmt.side(sides)}"
-            } + (suggestedSide?.let { " · מוצע: ${Fmt.side(it)} (הפוך מהפעם הקודמת)" } ?: ""),
+            } + (suggestedSide?.let { " · מוצע להתחיל ב${Fmt.side(it)}: הצד שהתרוקן פחות בפעם הקודמת" } ?: ""),
         )
         if (sides.length == 2) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
