@@ -358,13 +358,15 @@ private fun PumpFields(e: Event, onChange: (Event) -> Unit) {
 private fun SideToggle(label: String, selected: Boolean, suggested: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val bg = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
     val fg = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+    // Fixed height so the suggested side (with its small caption) is the same size as the other one.
     Column(
         modifier = modifier
+            .height(84.dp)
             .clip(RoundedCornerShape(18.dp))
             .background(bg)
-            .clickable(onClick = onClick)
-            .padding(vertical = 18.dp),
+            .clickable(onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
     ) {
         Text(if (selected) "✓ $label" else label, color = fg, fontSize = 22.sp, fontWeight = FontWeight.Bold)
         if (suggested) Text("מוצע", color = fg, style = MaterialTheme.typography.labelSmall)
